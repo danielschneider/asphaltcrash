@@ -230,8 +230,8 @@ body,
 
 .match-back {
   position: absolute;
+  top: calc(env(safe-area-inset-top) + 8px);
   right: calc(env(safe-area-inset-right) + 8px);
-  bottom: calc(env(safe-area-inset-bottom) + 8px);
   min-height: 36px;
   padding: 0 12px;
   border: none;

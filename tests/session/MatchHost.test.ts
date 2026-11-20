@@ -274,4 +274,13 @@ describe("MatchHost", () => {
     host.tick(clock.now);
     expect(transport.sent).toHaveLength(1);
   });
+
+  it("exposes a read-only snapshot and arena of the running sim", () => {
+    const { host, sims } = createHarness({ humanPids: [0, 1], botPids: [2] });
+    host.start();
+    const snapshot = host.snapshot();
+    expect(snapshot.cars.map((car) => car.pid)).toEqual([0, 1, 2]);
+    expect(snapshot).toEqual(sims[0]?.snapshot());
+    expect(host.arena.bases).toHaveLength(3);
+  });
 });

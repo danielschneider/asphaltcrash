@@ -179,6 +179,14 @@ describe("MatchClient", () => {
     ]);
   });
 
+  it("sends ready when started with an already consumed start message", () => {
+    const h = makeHarness();
+    h.client.start(startMessage());
+    expect(h.transport.ofType("ready", "reliable")).toEqual([
+      { v: 1, t: "ready", mid: MATCH_ID },
+    ]);
+  });
+
   it("ignores start from a non-host peer and invalid start payloads", () => {
     const h = makeHarness();
     h.client.start();

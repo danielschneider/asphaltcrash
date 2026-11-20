@@ -11,7 +11,8 @@ import {
   PeerTransport,
   type PeerFactory,
 } from "../network/transport/PeerTransport";
-import type { Unsubscribe } from "../network/transport/Transport";
+import type { Transport, Unsubscribe } from "../network/transport/Transport";
+import type { PeerId } from "../types/network";
 import {
   attachHandshakeClient,
   sendHello,
@@ -27,8 +28,10 @@ import {
   type RandomBytes,
 } from "../network/room/roomCode";
 import { clampBotCount, totalCarCount } from "./lobbyRoster";
-import { MatchHost } from "./MatchHost";
+import { MatchHost, MATCH_HOST_PHASE } from "./MatchHost";
 import { MatchClient } from "./MatchClient";
+import { frameSecondsSince } from "./frameSeconds";
+import { buildWorldView } from "../game/WorldView";
 import { buildArenaView } from "../game/arena";
 import { parseStart } from "../network/match/startMessage";
 import type { NetworkMessage } from "../network/protocol/messages";
@@ -40,6 +43,14 @@ import {
   reasonToMessage,
 } from "../store/lobbyStore";
 import type { ArenaView, BotDifficulty, MatchSetup } from "../types/game";
+
+interface ClientStart {
+  readonly start: NetworkMessage;
+  readonly localPid: number;
+  readonly transport: Transport;
+  readonly hostPeerId: PeerId;
+  readonly arena: ArenaView;
+}
 
 export const SESSION_STATE = {
   idle: "idle",
@@ -144,6 +155,13 @@ export class SessionController {
   private matchClient: MatchClient | null = null;
   private matchFrameId: number | null = null;
   private matchRenderer: WorldRenderer | null = null;
+  private matchRendererReady: Promise<void> | null = null;
+  private matchSurface: HTMLElement | null = null;
+  private pendingStart: ClientStart | null = null;
+  private clientStart: ClientStart | null = null;
+  private clientStartSeen = false;
+  private hostRenderMs: number | null = null;
+  private matchFrames = 0;
 
   constructor(deps: SessionDeps = DEFAULT_DEPS) {
     this.deps = deps;
@@ -229,6 +247,7 @@ export class SessionController {
       undefined,
       this.lobbyDeps.randomBytes,
     );
+    console.log("[mp][host] createRoom codeOk=" + (code !== null));
     if (code === null) {
       lobbyStore.set({ status: "error", error: "Could not create room" });
       return;
@@ -293,6 +312,9 @@ export class SessionController {
       return;
     }
     const transport = this.lobbyTransport;
+    console.log(
+      `[mp][host] startMatch humans=${humans.length} bots=${bots.length}`,
+    );
     const seed = crypto.getRandomValues(new Uint32Array(1))[0] ?? 0;
     this.matchHost = new MatchHost({
       transport,
@@ -316,24 +338,81 @@ export class SessionController {
         this.matchHost?.handleInbound(msg, from);
       }),
     );
+    this.hostRenderMs = null;
     this.setState(SESSION_STATE.playingNetwork);
     this.matchHost.start();
+    console.log(
+      `[mp][host] matchHost.start returned phase=${this.matchHost.phase}`,
+    );
     this.startFrameLoop();
   }
 
   attachMatchRenderer(host: HTMLElement): Promise<void> {
-    return this.createMatchRenderer(host);
+    console.log(
+      `[mp][render] attachMatchRenderer state=${this.state} rendererExists=${this.matchRenderer !== null} hostClient=${this.matchClient !== null}`,
+    );
+    if (this.matchSurface === host && this.matchRendererReady !== null) {
+      return this.matchRendererReady;
+    }
+    this.releaseMatchRenderer();
+    this.matchSurface = host;
+    const ready = this.deps
+      .createRenderer(host, this.currentArena())
+      .then((renderer) => this.adoptMatchRenderer(host, renderer));
+    this.matchRendererReady = ready;
+    return ready;
   }
 
-  private async createMatchRenderer(host: HTMLElement): Promise<void> {
-    const renderer = await this.deps.createRenderer(
-      host,
-      buildArenaView(
-        lobbyStore.getSnapshot().players.map((p) => p.pid),
-        [],
-      ),
-    );
+  private adoptMatchRenderer(host: HTMLElement, renderer: WorldRenderer): void {
+    if (this.matchSurface !== host) {
+      renderer.destroy();
+      return;
+    }
     this.matchRenderer = renderer;
+    console.log("[mp][render] match renderer created");
+    this.startPendingClient();
+  }
+
+  private releaseMatchRenderer(): void {
+    this.matchClient?.stop();
+    this.matchClient = null;
+    this.matchRenderer?.destroy();
+    this.matchRenderer = null;
+    this.matchRendererReady = null;
+    this.matchSurface = null;
+    if (this.clientStart !== null) this.pendingStart = this.clientStart;
+  }
+
+  private currentArena(): ArenaView {
+    if (this.matchHost !== null) return this.matchHost.arena;
+    const start = this.pendingStart ?? this.clientStart;
+    if (start !== null) return start.arena;
+    return buildArenaView(
+      lobbyStore.getSnapshot().players.map((p) => p.pid),
+      [],
+    );
+  }
+
+  private startPendingClient(): void {
+    const pending = this.pendingStart;
+    const renderer = this.matchRenderer;
+    if (pending === null || renderer === null || this.matchClient !== null) {
+      return;
+    }
+    this.pendingStart = null;
+    this.matchClient = new MatchClient({
+      transport: pending.transport,
+      hostPeerId: pending.hostPeerId,
+      localPid: pending.localPid,
+      renderer,
+      inputBuffer: this.inputBuffer,
+      now: () => performance.now(),
+      requestFrame: (cb) =>
+        (this.deps.requestFrame ?? requestAnimationFrame)(cb),
+      cancelFrame: (id) => (this.deps.cancelFrame ?? cancelAnimationFrame)(id),
+    });
+    console.log("[mp][client] MatchClient.start");
+    this.matchClient.start(pending.start);
   }
 
   private startFrameLoop(): void {
@@ -342,9 +421,32 @@ export class SessionController {
     const loop = (now: number): void => {
       if (this.state !== SESSION_STATE.playingNetwork) return;
       this.matchHost?.tick(now);
+      this.renderHostFrame(now);
+      this.logMatchFrame();
       this.matchFrameId = request(loop);
     };
     this.matchFrameId = request(loop);
+  }
+
+  private renderHostFrame(nowMs: number): void {
+    const host = this.matchHost;
+    const renderer = this.matchRenderer;
+    if (host === null || renderer === null) return;
+    if (host.phase !== MATCH_HOST_PHASE.running) return;
+    const dtSeconds = frameSecondsSince(this.hostRenderMs, nowMs);
+    this.hostRenderMs = nowMs;
+    renderer.update(
+      buildWorldView(host.snapshot(), host.arena, HOST_PID),
+      dtSeconds,
+    );
+  }
+
+  private logMatchFrame(): void {
+    this.matchFrames += 1;
+    if (this.matchFrames !== 1 && this.matchFrames % 60 !== 0) return;
+    console.log(
+      `[mp][frame] n=${this.matchFrames} matchHost=${this.matchHost !== null} matchClient=${this.matchClient !== null} matchRenderer=${this.matchRenderer !== null} hostPhase=${this.matchHost?.phase ?? "none"}`,
+    );
   }
 
   private stopMatch(): void {
@@ -353,14 +455,16 @@ export class SessionController {
       this.matchFrameId = null;
     }
     this.matchHost = null;
-    this.matchClient?.stop();
-    this.matchClient = null;
-    this.matchRenderer?.destroy();
-    this.matchRenderer = null;
+    this.releaseMatchRenderer();
+    this.pendingStart = null;
+    this.clientStart = null;
+    this.clientStartSeen = false;
+    this.hostRenderMs = null;
   }
 
   joinRoom(code: string, name: string): void {
     this.assertIdle("join room");
+    console.log("[mp][client] joinRoom");
     if (!validateRoomCode(code)) {
       lobbyStore.set({ status: "error", error: "Invalid room code" });
       return;
@@ -439,7 +543,7 @@ export class SessionController {
     if (transport === null) return;
     this.lobbyUnsubscribers.push(
       transport.onMessage((msg: NetworkMessage) => {
-        if (msg.t !== "start" || this.matchClient !== null) return;
+        if (msg.t !== "start" || this.clientStartSeen) return;
         this.beginClientMatch(msg, localPid);
       }),
     );
@@ -448,23 +552,27 @@ export class SessionController {
   private beginClientMatch(msg: NetworkMessage, localPid: number): void {
     const parsed = parseStart(msg);
     const transport = this.lobbyTransport;
+    console.log(
+      `[mp][client] beginClientMatch parsed=${parsed.ok} transport=${transport !== null} surface=${this.matchSurface !== null}`,
+    );
     if (!parsed.ok || transport === null) return;
-    const hostPeerId = hostPeerIdFor(lobbyStore.getSnapshot().roomCode ?? "");
-    const renderer = this.matchRenderer;
-    if (renderer === null) return;
-    this.matchClient = new MatchClient({
-      transport,
-      hostPeerId,
+    this.clientStartSeen = true;
+    const pids = parsed.value.spawns.map((spawn) => spawn[0]);
+    const humanCount =
+      typeof parsed.value.cfg.humanCount === "number"
+        ? parsed.value.cfg.humanCount
+        : 0;
+    const start: ClientStart = {
+      start: msg,
       localPid,
-      renderer,
-      inputBuffer: this.inputBuffer,
-      now: () => performance.now(),
-      requestFrame: (cb) =>
-        (this.deps.requestFrame ?? requestAnimationFrame)(cb),
-      cancelFrame: (id) => (this.deps.cancelFrame ?? cancelAnimationFrame)(id),
-    });
-    this.matchClient.start();
+      transport,
+      hostPeerId: hostPeerIdFor(lobbyStore.getSnapshot().roomCode ?? ""),
+      arena: buildArenaView(pids.slice(0, humanCount), pids.slice(humanCount)),
+    };
+    this.clientStart = start;
+    this.pendingStart = start;
     this.setState(SESSION_STATE.playingNetwork);
+    this.startPendingClient();
   }
 
   private failLobby(reason: string, detail?: string): void {

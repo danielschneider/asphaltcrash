@@ -14,7 +14,12 @@ import {
 } from "../network/protocol/messages";
 import { validateReady } from "../network/protocol/validate";
 import type { Transport } from "../network/transport/Transport";
-import type { BotDifficulty, MatchSetup } from "../types/game";
+import type {
+  ArenaView,
+  BotDifficulty,
+  MatchSetup,
+  MatchSnapshot,
+} from "../types/game";
 import type { ChannelKind, PeerId } from "../types/network";
 
 export const MATCH_HOST_PHASE = {
@@ -64,6 +69,7 @@ export class MatchHost {
   private readyTimer: unknown = null;
   private lastNowMs = 0;
   private accumulatorMs = 0;
+  private snapsSent = 0;
 
   constructor(deps: MatchHostDeps) {
     this.deps = deps;
@@ -83,11 +89,22 @@ export class MatchHost {
     return this.phaseValue;
   }
 
+  get arena(): ArenaView {
+    return this.sim.arena;
+  }
+
+  snapshot(): MatchSnapshot {
+    return this.sim.snapshot();
+  }
+
   start(): void {
     if (this.phaseValue !== MATCH_HOST_PHASE.idle) return;
     this.matchId = this.deps.newMatchId();
     this.phaseValue = MATCH_HOST_PHASE.waiting;
     const message = buildStart(this.setup, this.matchId);
+    console.log(
+      `[mp][host] start sent clients=${this.clientPids.length} cars=${this.sim.snapshot().cars.length}`,
+    );
     for (const pid of this.clientPids) {
       this.sendToPid(pid, message, "reliable");
     }
@@ -97,6 +114,7 @@ export class MatchHost {
     }
     this.readyTimer = this.deps.setTimeout(() => {
       this.readyTimer = null;
+      console.log("[mp][host] ready timeout -> running anyway");
       this.markRunning();
     }, gameConfig.matchReadyTimeoutMs);
   }
@@ -133,6 +151,7 @@ export class MatchHost {
   private handleReady(msg: NetworkMessage, pid: number): boolean {
     if (this.phaseValue !== MATCH_HOST_PHASE.waiting) return false;
     const result = validateReady(msg, this.matchId);
+    console.log(`[mp][host] ready received ok=${result.ok}`);
     if (!result.ok) return false;
     this.readyPids.add(pid);
     if (this.readyPids.size === this.clientPids.length) {
@@ -149,6 +168,9 @@ export class MatchHost {
     this.phaseValue = MATCH_HOST_PHASE.running;
     this.lastNowMs = this.deps.now();
     this.accumulatorMs = 0;
+    console.log(
+      `[mp][host] running ready=${this.readyPids.size}/${this.clientPids.length}`,
+    );
   }
 
   private stepOnce(nowMs: number): void {
@@ -160,6 +182,11 @@ export class MatchHost {
     const tick = this.sim.tick;
     if (this.pump.due(tick)) {
       this.broadcastSnapshots();
+    }
+    if (tick % 60 === 0) {
+      console.log(
+        `[mp][host] tick=${tick} cars=${this.sim.snapshot().cars.length} snapsSent=${this.snapsSent}`,
+      );
     }
     if (timerRemainingMs(tick, this.setup.matchSeconds) === 0) {
       this.finish();
@@ -175,6 +202,7 @@ export class MatchHost {
         this.pump.buildSnapshotMessage(snapshot, pid),
         "unreliable",
       );
+      this.snapsSent += 1;
     }
   }
 
@@ -190,6 +218,9 @@ export class MatchHost {
 
   private finish(): void {
     this.phaseValue = MATCH_HOST_PHASE.finished;
+    console.log(
+      `[mp][host] match end tick=${this.sim.tick} snapsSent=${this.snapsSent}`,
+    );
     const snapshot = this.pump.capture();
     const scores = new Map(snapshot.cars.map((car) => [car.pid, car.score]));
     const end: EndMessage = {

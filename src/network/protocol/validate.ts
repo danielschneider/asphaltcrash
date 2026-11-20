@@ -411,6 +411,10 @@ export function validateMessage(raw: unknown): ParseResult<NetworkMessage> {
       return validateWelcomePayload(raw);
     case "reject":
       return validateRejectPayload(raw);
+    case "start":
+      return validateStart(raw);
+    case "ready":
+      return validateReadyEnvelope(raw);
     case undefined:
       return fail("field:t");
     default:
@@ -645,6 +649,17 @@ export function validateReady(
   }
   if (raw.mid !== expectedMid) {
     return fail("mid-mismatch");
+  }
+  return { ok: true, value: { v: PROTOCOL_VERSION, t: "ready", mid: raw.mid } };
+}
+
+function validateReadyEnvelope(raw: Dict): ParseResult<ReadyMessage> {
+  const envelopeError = checkEnvelope(raw, "ready");
+  if (envelopeError !== null) {
+    return fail(envelopeError);
+  }
+  if (!isInt(raw.mid, 0, SEQ_MAX)) {
+    return fail("field:mid");
   }
   return { ok: true, value: { v: PROTOCOL_VERSION, t: "ready", mid: raw.mid } };
 }

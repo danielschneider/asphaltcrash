@@ -110,6 +110,8 @@ export class PeerTransport implements Transport {
   private readonly anchorPeerId: PeerId;
   private readonly handshake: HandshakeHost | null;
   private isClosed = false;
+  private sendCounts = { in: 0, snap: 0 };
+  private recvCounts = { in: 0, snap: 0 };
 
   constructor(options: PeerTransportOptions) {
     this.role = options.role;
@@ -139,6 +141,7 @@ export class PeerTransport implements Transport {
       return;
     }
     const text = encodeMessage(message);
+    this.logSend(message, channel, true);
     for (const link of [...this.links.values()]) {
       const slot = channel === "reliable" ? link.reliable : link.unreliable;
       if (slot?.isOpen === true) {
@@ -153,6 +156,7 @@ export class PeerTransport implements Transport {
       return;
     }
     const slot = channel === "reliable" ? link.reliable : link.unreliable;
+    this.logSend(message, channel, slot?.isOpen === true);
     if (slot?.isOpen === true) {
       slot.conn.send(encodeMessage(message));
     }
@@ -247,6 +251,7 @@ export class PeerTransport implements Transport {
       this.rejectInbound(link.peerId);
       return;
     }
+    this.logRecv(result.value);
     for (const handler of this.messageHandlers) {
       handler(result.value, link.peerId);
     }
@@ -309,6 +314,36 @@ export class PeerTransport implements Transport {
     if (link.isAnnounced) {
       this.emitPeer({ kind: "close", peerId: link.peerId });
     }
+  }
+
+  private logSend(
+    message: NetworkMessage,
+    channel: ChannelKind,
+    open: boolean,
+  ): void {
+    if (message.t === "in" || message.t === "snap") {
+      this.sendCounts[message.t] += 1;
+      if (this.sendCounts[message.t] % 60 === 0) {
+        console.log(
+          `[mp][net] send ${message.t} n=${this.sendCounts[message.t]} open=${open}`,
+        );
+      }
+      return;
+    }
+    console.log(`[mp][net] send t=${message.t} ch=${channel} open=${open}`);
+  }
+
+  private logRecv(message: NetworkMessage): void {
+    if (message.t === "in" || message.t === "snap") {
+      this.recvCounts[message.t] += 1;
+      if (this.recvCounts[message.t] % 60 === 0) {
+        console.log(
+          `[mp][net] recv ${message.t} n=${this.recvCounts[message.t]}`,
+        );
+      }
+      return;
+    }
+    console.log(`[mp][net] recv t=${message.t}`);
   }
 
   private emitError(peerId: PeerId, value: unknown): void {

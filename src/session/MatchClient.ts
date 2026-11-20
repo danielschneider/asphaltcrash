@@ -15,6 +15,7 @@ import { validateSnapPayload } from "../network/protocol/validate";
 import type { Transport, Unsubscribe } from "../network/transport/Transport";
 import type { ArenaView } from "../types/game";
 import type { PeerId } from "../types/network";
+import { frameSecondsSince } from "./frameSeconds";
 
 export interface MatchClientDeps {
   readonly transport: Transport;
@@ -27,8 +28,6 @@ export interface MatchClientDeps {
   readonly cancelFrame: (id: number) => void;
 }
 
-const MAX_FRAME_SECONDS = 0.1;
-const MS_PER_SECOND = 1000;
 const UNSEEDED = -1;
 
 export class MatchClient {
@@ -43,6 +42,8 @@ export class MatchClient {
   private frameId: number | null = null;
   private lastFrameMs: number | null = null;
   private lastInputSeq = UNSEEDED;
+  private snapsReceived = 0;
+  private rendererUpdates = 0;
 
   constructor(deps: MatchClientDeps) {
     this.deps = deps;
@@ -59,11 +60,13 @@ export class MatchClient {
     return this.scores;
   }
 
-  start(): void {
+  // initialStart: a start already consumed by the lobby listener; handled here so ready is sent.
+  start(initialStart?: NetworkMessage): void {
     if (this.unsubscribe !== null) return;
     this.unsubscribe = this.deps.transport.onMessage((msg, from) => {
       this.handleInbound(msg, from);
     });
+    if (initialStart !== undefined) this.handleStart(initialStart);
     this.frameId = this.deps.requestFrame(this.handleFrame);
   }
 
@@ -106,6 +109,7 @@ export class MatchClient {
 
   private handleStart(raw: NetworkMessage): void {
     const parsed = parseStart(raw);
+    console.log(`[mp][client] start received ok=${parsed.ok}`);
     if (!parsed.ok) return;
     const { mid, spawns, cfg } = parsed.value;
     const pids = spawns.map(([pid]) => pid);
@@ -116,13 +120,26 @@ export class MatchClient {
       pids.slice(humanCount),
     );
     this.deps.transport.send(makeReady(mid), "reliable");
+    console.log(`[mp][client] ready sent cars=${pids.length}`);
   }
 
   private handleSnap(raw: NetworkMessage): void {
-    if (this.arena === null) return;
+    if (this.arena === null) {
+      console.log("[mp][client] snap dropped: arena null (start not handled)");
+      return;
+    }
     const parsed = validateSnapPayload(raw);
-    if (!parsed.ok) return;
+    if (!parsed.ok) {
+      console.log(`[mp][client] snap invalid reason=${parsed.reason}`);
+      return;
+    }
     this.remote.push(fromSnapMessage(parsed.value));
+    this.snapsReceived += 1;
+    if (this.snapsReceived === 1 || this.snapsReceived % 60 === 0) {
+      console.log(
+        `[mp][client] snap n=${this.snapsReceived} tick=${parsed.value.tm} cars=${parsed.value.cars.length}`,
+      );
+    }
   }
 
   private handleEnd(msg: EndMessage): void {
@@ -149,13 +166,17 @@ export class MatchClient {
       buildWorldView(sample, arena, this.deps.localPid),
       dtSeconds,
     );
+    this.rendererUpdates += 1;
+    if (this.rendererUpdates === 1 || this.rendererUpdates % 60 === 0) {
+      console.log(
+        `[mp][client] renderer.update n=${this.rendererUpdates} cars=${sample.cars.length}`,
+      );
+    }
   }
 
   private takeFrameSeconds(nowMs: number): number {
-    const last = this.lastFrameMs;
+    const seconds = frameSecondsSince(this.lastFrameMs, nowMs);
     this.lastFrameMs = nowMs;
-    if (last === null) return 0;
-    const seconds = (nowMs - last) / MS_PER_SECOND;
-    return Math.min(Math.max(seconds, 0), MAX_FRAME_SECONDS);
+    return seconds;
   }
 }
