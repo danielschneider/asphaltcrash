@@ -88,9 +88,44 @@ describe("stepCamera", () => {
     expect(zoomForSpeed(0)).toBe(gameConfig.cameraZoomRest);
     expect(zoomForSpeed(1)).toBe(gameConfig.cameraZoomMoving);
     expect(zoomForSpeed(0.5)).toBeCloseTo(
-      (gameConfig.cameraZoomRest + gameConfig.cameraZoomMoving) / 2,
+      Math.sqrt(gameConfig.cameraZoomRest * gameConfig.cameraZoomMoving),
       10,
     );
+  });
+
+  it("shows at least 2.5x the rest visible area at full speed", () => {
+    const restArea = 1 / (zoomForSpeed(0) * zoomForSpeed(0));
+    const fullArea = 1 / (zoomForSpeed(1) * zoomForSpeed(1));
+    expect(fullArea / restArea).toBeGreaterThanOrEqual(2.5);
+  });
+
+  it("widens the view faster than it closes in", () => {
+    expect(gameConfig.cameraZoomOutLerp).toBeGreaterThan(
+      gameConfig.cameraFollowLerp,
+    );
+  });
+
+  it("covers a larger fraction of the zoom distance per step when widening", () => {
+    const start = 1;
+    const widenTarget = gameConfig.cameraZoomMoving;
+    const closeTarget = gameConfig.cameraZoomRest;
+    const widen = stepCamera(
+      { x: 1200, y: 800, zoom: start },
+      { x: 1200, y: 800, speedFraction: 1 },
+      1 / 60,
+      VIEWPORT,
+      ARENA,
+    );
+    const close = stepCamera(
+      { x: 1200, y: 800, zoom: start },
+      { x: 1200, y: 800, speedFraction: 0 },
+      1 / 60,
+      VIEWPORT,
+      ARENA,
+    );
+    const widenFraction = (start - widen.zoom) / (start - widenTarget);
+    const closeFraction = (close.zoom - start) / (closeTarget - start);
+    expect(widenFraction).toBeGreaterThan(closeFraction);
   });
 
   it("clamps speedFraction to 0..1 for zoom", () => {

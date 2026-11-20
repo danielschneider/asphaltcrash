@@ -128,7 +128,8 @@ Arena size and spawn layout are authored constants, not procedural. Procedural m
 
 ### 7.1 Camera
 - Follows the local player's car with smoothing (`cameraFollowLerp` 6 per second).
-- Zoom: closer at rest, further out at speed (GTA-like). Target = lerp(`cameraZoomRest` 1.6, `cameraZoomMoving` 1.0, speedFraction), speedFraction clamped to 0..1. Smoothed with the same follow lerp. Zoom is a scale factor: larger = closer.
+- Zoom: closer at rest, further out at speed (GTA-like). Target = `cameraZoomRest` 1.5 × (`cameraZoomMoving` 0.55 / 1.5)^speedFraction, a geometric blend so each speed step changes the visible area by the same proportion. speedFraction = car speed / (`maxForwardSpeed` + `boostSpeedBonus`), clamped to 0..1. Zoom is a scale factor: larger = closer. Smoothed with `cameraFollowLerp` (6/s) when closing in (braking) and with `cameraZoomOutLerp` (10/s) when widening the view (speeding up), so the view opens quickly at speed and settles slowly when braking.
+- Visible area at full speed is about 2.7× the rest area (1.5 / 0.55).
 - Clamped to arena bounds using the visible area in world units (viewport / zoom). If the viewport is larger than the arena, the arena is centered.
 - Spectator mode (solo host with no local car, not in v1).
 
@@ -243,9 +244,10 @@ Implemented with the browser Web Audio API only (no audio library). Pure math li
 | `hitEventThreshold` | 0.5 | Impulse above which a `hit` event is emitted |
 | `cameraShakePx` | 4 | Camera shake amplitude in px |
 | `cameraShakeMs` | 150 | Camera shake duration in ms |
-| `cameraZoomRest` | 1.6 | Camera zoom factor at rest (larger = closer), section 7.1 |
-| `cameraZoomMoving` | 1.0 | Camera zoom factor at full speed, section 7.1 |
-| `cameraFollowLerp` | 6 | Camera follow and zoom smoothing rate per second, section 7.1 |
+| `cameraZoomRest` | 1.5 | Camera zoom factor at rest (larger = closer), section 7.1 |
+| `cameraZoomMoving` | 0.55 | Camera zoom factor at full speed, section 7.1 |
+| `cameraFollowLerp` | 6 | Camera follow and zoom-in smoothing rate per second, section 7.1 |
+| `cameraZoomOutLerp` | 10 | Camera zoom-out (widen view) smoothing rate per second, section 7.1 |
 | `arenaWidth` | 3200 | Arena width in world units (px) |
 | `arenaHeight` | 2400 | Arena height in world units (px) |
 | `wallThickness` | 40 | Static wall thickness in px |

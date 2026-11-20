@@ -34,8 +34,8 @@ export function createCamera(arena: CameraBounds | ArenaView): CameraState {
 export function zoomForSpeed(speedFraction: number): number {
   const t = clamp01(speedFraction);
   return (
-    gameConfig.cameraZoomRest +
-    (gameConfig.cameraZoomMoving - gameConfig.cameraZoomRest) * t
+    gameConfig.cameraZoomRest *
+    Math.pow(gameConfig.cameraZoomMoving / gameConfig.cameraZoomRest, t)
   );
 }
 
@@ -46,10 +46,16 @@ export function stepCamera(
   viewport: CameraViewport,
   arena: CameraBounds,
 ): CameraState {
-  const blend =
-    1 - Math.exp(-gameConfig.cameraFollowLerp * Math.max(0, dtSeconds));
-  const zoom =
-    state.zoom + (zoomForSpeed(target.speedFraction) - state.zoom) * blend;
+  const dt = Math.max(0, dtSeconds);
+  const blend = 1 - Math.exp(-gameConfig.cameraFollowLerp * dt);
+  const targetZoom = zoomForSpeed(target.speedFraction);
+  // Lower zoom value = wider view. Widening (speeding up) uses the faster rate.
+  const zoomRate =
+    targetZoom < state.zoom
+      ? gameConfig.cameraZoomOutLerp
+      : gameConfig.cameraFollowLerp;
+  const zoomBlend = 1 - Math.exp(-zoomRate * dt);
+  const zoom = state.zoom + (targetZoom - state.zoom) * zoomBlend;
   // Visible area in world units: viewport pixels divided by the zoom factor.
   const halfWidth = viewport.width / (2 * zoom);
   const halfHeight = viewport.height / (2 * zoom);

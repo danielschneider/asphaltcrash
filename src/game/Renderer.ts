@@ -549,7 +549,9 @@ function speedFraction(state: RenderState, car: CarView, dt: number): number {
   const prev = state.prevLocal;
   if (!prev || dt <= 0) return 0;
   const speed = Math.hypot(car.x - prev.x, car.y - prev.y) / dt;
-  return clamp01(speed / gameConfig.maxForwardSpeed);
+  return clamp01(
+    speed / (gameConfig.maxForwardSpeed + gameConfig.boostSpeedBonus),
+  );
 }
 
 function clampFrameSeconds(dtSeconds: number): number {

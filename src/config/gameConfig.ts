@@ -56,6 +56,7 @@ export interface GameConfigShape {
   readonly cameraZoomRest: number;
   readonly cameraZoomMoving: number;
   readonly cameraFollowLerp: number;
+  readonly cameraZoomOutLerp: number;
   readonly arenaWidth: number;
   readonly arenaHeight: number;
   readonly wallThickness: number;
@@ -168,10 +169,11 @@ export const gameConfig = {
   hitEventThreshold: 0.5,
   cameraShakePx: 4,
   cameraShakeMs: 150,
-  // Zoom factor (larger = closer). Lerped by speedFraction: rest at 0, moving at 1 (GAMEPLAY 7.1).
-  cameraZoomRest: 1.6,
-  cameraZoomMoving: 1.0,
+  // Zoom factor (larger = closer). Geometric blend by speedFraction: rest at 0, moving at 1 (GAMEPLAY 7.1).
+  cameraZoomRest: 1.5,
+  cameraZoomMoving: 0.55,
   cameraFollowLerp: 6,
+  cameraZoomOutLerp: 10,
   arenaWidth: ARENA_WIDTH,
   arenaHeight: ARENA_HEIGHT,
   wallThickness: 40,
