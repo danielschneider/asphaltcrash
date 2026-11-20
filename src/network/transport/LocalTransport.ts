@@ -82,6 +82,13 @@ export class LocalTransport implements Transport {
     this.transmit(encodeMessage(message), channel);
   }
 
+  sendTo(peerId: PeerId, message: NetworkMessage, channel: ChannelKind): void {
+    if (this.peer?.selfId !== peerId) {
+      return;
+    }
+    this.transmit(encodeMessage(message), channel);
+  }
+
   sendRaw(text: string, channel: ChannelKind): void {
     this.transmit(text, channel);
   }

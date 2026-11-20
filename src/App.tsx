@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { LobbyScreen } from "./components/lobby/LobbyScreen";
 import { StartScreen } from "./components/lobby/StartScreen";
 import { MatchScreen } from "./components/hud/MatchScreen";
 import { ResultScreen } from "./components/result/ResultScreen";
@@ -8,6 +9,11 @@ import {
   sessionController,
   type SoloMatchOptions,
 } from "./session/SessionController";
+
+const LOBBY_STATES: readonly string[] = [
+  SESSION_STATE.hostingLobby,
+  SESSION_STATE.joinedLobby,
+];
 
 export function App() {
   const sessionState = useSession();
@@ -26,6 +32,14 @@ export function App() {
     return (
       <div className="app-root">
         <ResultScreen onBack={handleExit} />
+      </div>
+    );
+  }
+
+  if (LOBBY_STATES.includes(sessionState)) {
+    return (
+      <div className="app-root">
+        <LobbyScreen />
       </div>
     );
   }

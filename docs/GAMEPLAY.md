@@ -226,6 +226,8 @@ Implemented with the browser Web Audio API only (no audio library). Pure math li
 | `reconnectWindowMs` | 45000 | |
 | `inputTimeoutMs` | 500 | |
 | `hostSilenceTimeoutMs` | 15000 | |
+| `matchReadyTimeoutMs` | 5000 | Host starts the match after this wait even if some clients have not sent `ready` |
+| `lobbyConnectTimeoutMs` | 10000 | Lobby join timeout in ms; join is reported as failed if no welcome arrives |
 | `botAttackRadiusPx` | 350 | Bot attacks an enemy within this distance (hp >= 30) |
 | `botEvadeRadiusPx` | 200 | Bot evades an enemy within this distance when hp < 60 and not attacking |
 | `timerWarningSeconds` | [30, 10, 0] | Remaining-time thresholds for timer warnings |
@@ -318,10 +320,12 @@ Implemented with the browser Web Audio API only (no audio library). Pure math li
 
 ### 10.4 Lobby rules
 - Host creates room → 6-character code and QR code shown.
+- Host sets CPU players in multiplayer (range 0..12, default 0); total cars (humans + CPU) must stay ≤ 16.
 - Clients join by typing code or scanning QR.
-- Each player picks a name (≤ 16 chars). Colors are assigned by slot order (no picker in v1).
+  - Each player picks a name (≤ 16 chars). If left empty, a name is generated as "<Adjective>-<Animal>-<NN>" (e.g. "Awesome-Squirrel-42"), where NN is a two-digit number 10..99; if that exceeds 16 chars the shorter form "<Animal>-<NN>" (e.g. "Squirrel-42") is used; a refresh button next to the name field generates a new name; the host assigns a generated unique name when a client sends an invalid one. Colors are assigned by slot order (no picker in v1).
 - Host can kick a player (v1 optional, P4).
 - Room locks when match starts. New joins are rejected with `running`.
+- Host/join lobby screen exists (P3.2); the match start itself arrives in P3.3+ and the start button stays disabled until then.
 
 ---
 

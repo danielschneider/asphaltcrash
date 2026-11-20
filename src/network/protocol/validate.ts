@@ -4,12 +4,23 @@ import {
   EVENT_KINDS,
   MESSAGE_TYPES,
   PROTOCOL_VERSION,
+  type ConfigValue,
   type EventMessage,
   type InputMessage,
+  type LobbyKind,
+  type LobbyMessageBody,
+  type LobbyPlayer,
+  type MatchConfigShape,
   type NetworkMessage,
+  type RejectMessage,
+  type ReadyMessage,
+  type RejectReason,
   type SnapBillItem,
   type SnapCarItem,
   type SnapMessage,
+  type SpawnItem,
+  type StartMessage,
+  type WelcomeMessage,
 } from "./messages";
 import type { PeerId } from "../../types/network";
 
@@ -396,6 +407,10 @@ export function validateMessage(raw: unknown): ParseResult<NetworkMessage> {
       return validateInputPayload(raw);
     case "ev":
       return validateEventPayload(raw);
+    case "welcome":
+      return validateWelcomePayload(raw);
+    case "reject":
+      return validateRejectPayload(raw);
     case undefined:
       return fail("field:t");
     default:
@@ -406,6 +421,122 @@ export function validateMessage(raw: unknown): ParseResult<NetworkMessage> {
 
 function isKnownMessageType(raw: unknown): boolean {
   return MESSAGE_TYPES.some((type) => type === raw);
+}
+
+const REJECT_REASONS: readonly RejectReason[] = [
+  "version",
+  "full",
+  "running",
+  "invalid",
+];
+
+function isRejectReason(raw: unknown): raw is RejectReason {
+  return REJECT_REASONS.some((reason) => reason === raw);
+}
+
+function isLobbyKind(raw: unknown): raw is LobbyKind {
+  return raw === "h" || raw === "b";
+}
+
+function validateLobbyPlayer(raw: unknown): ParseResult<LobbyPlayer> {
+  if (!Array.isArray(raw) || raw.length !== 4) {
+    return fail("field:player");
+  }
+  const [pid, name, kind, ready] = raw;
+  if (!isValidPid(pid) || typeof name !== "string") {
+    return fail("field:player");
+  }
+  if (!isLobbyKind(kind) || typeof ready !== "boolean") {
+    return fail("field:player");
+  }
+  return { ok: true, value: [pid, name, kind, ready] };
+}
+
+function validateConfig(raw: unknown): ParseResult<MatchConfigShape> {
+  if (!isRecord(raw)) {
+    return fail("field:cfg");
+  }
+  const cfg: Record<string, ConfigValue> = {};
+  for (const [key, value] of Object.entries(raw)) {
+    if (
+      typeof value !== "number" &&
+      typeof value !== "boolean" &&
+      typeof value !== "string"
+    ) {
+      return fail("field:cfg");
+    }
+    cfg[key] = value;
+  }
+  return { ok: true, value: cfg };
+}
+
+function validateLobbyBody(raw: unknown): ParseResult<LobbyMessageBody> {
+  if (!isRecord(raw)) {
+    return fail("field:lobby");
+  }
+  const players = validateList(
+    raw.players,
+    gameConfig.maxCars,
+    validateLobbyPlayer,
+    "field:players",
+  );
+  if (!players.ok) {
+    return players;
+  }
+  if (!isInt(raw.bots, 0, gameConfig.maxCars)) {
+    return fail("field:bots");
+  }
+  const cfg = validateConfig(raw.cfg);
+  if (!cfg.ok) {
+    return cfg;
+  }
+  return {
+    ok: true,
+    value: { players: players.value, bots: raw.bots, cfg: cfg.value },
+  };
+}
+
+function validateWelcomePayload(raw: unknown): ParseResult<WelcomeMessage> {
+  if (!isRecord(raw)) {
+    return fail("not-object");
+  }
+  const envelopeError = checkEnvelope(raw, "welcome");
+  if (envelopeError !== null) {
+    return fail(envelopeError);
+  }
+  if (!isValidPid(raw.pid)) {
+    return fail("field:pid");
+  }
+  const lobby = validateLobbyBody(raw.lobby);
+  if (!lobby.ok) {
+    return lobby;
+  }
+  return {
+    ok: true,
+    value: {
+      v: PROTOCOL_VERSION,
+      t: "welcome",
+      pid: raw.pid,
+      lobby: lobby.value,
+    },
+  };
+}
+
+function validateRejectPayload(raw: unknown): ParseResult<RejectMessage> {
+  if (!isRecord(raw)) {
+    return fail("not-object");
+  }
+  const envelopeError = checkEnvelope(raw, "reject");
+  if (envelopeError !== null) {
+    return fail(envelopeError);
+  }
+  if (!isRejectReason(raw.reason)) {
+    return fail("field:reason");
+  }
+  return {
+    ok: true,
+    value: { v: PROTOCOL_VERSION, t: "reject", reason: raw.reason },
+  };
 }
 
 export function validateHello(raw: unknown): ParseResult<HelloFields> {
@@ -426,6 +557,96 @@ export function validateHello(raw: unknown): ParseResult<HelloFields> {
     return fail("field:token");
   }
   return { ok: true, value: { name, token: raw.token } };
+}
+
+const SEED_MAX = 0xffff_ffff;
+const MATCH_SECONDS_MIN = 1;
+const MATCH_SECONDS_MAX = 600;
+
+function validateSpawnItem(raw: unknown): ParseResult<SpawnItem> {
+  if (!Array.isArray(raw) || raw.length !== 4) {
+    return fail("field:spawn");
+  }
+  const [pid, x, y, angle] = raw;
+  if (!isValidPid(pid)) {
+    return fail("pid-range");
+  }
+  if (!isBoundedNumber(x, POS_LIMIT) || !isBoundedNumber(y, POS_LIMIT)) {
+    return fail("field:spawn-pos");
+  }
+  if (typeof angle !== "number" || !Number.isFinite(angle)) {
+    return fail("field:spawn-angle");
+  }
+  return { ok: true, value: [pid, x, y, angle] };
+}
+
+export function validateStart(raw: unknown): ParseResult<StartMessage> {
+  if (!isRecord(raw)) {
+    return fail("not-object");
+  }
+  const envelopeError = checkEnvelope(raw, "start");
+  if (envelopeError !== null) {
+    return fail(envelopeError);
+  }
+  if (!isInt(raw.mid, 0, SEQ_MAX)) {
+    return fail("field:mid");
+  }
+  if (!isInt(raw.seed, 0, SEED_MAX)) {
+    return fail("field:seed");
+  }
+  const cfg = validateConfig(raw.cfg);
+  if (!cfg.ok) {
+    return cfg;
+  }
+  const matchSeconds = cfg.value.matchSeconds;
+  if (
+    typeof matchSeconds !== "number" ||
+    !Number.isFinite(matchSeconds) ||
+    matchSeconds < MATCH_SECONDS_MIN ||
+    matchSeconds > MATCH_SECONDS_MAX
+  ) {
+    return fail("field:matchSeconds");
+  }
+  const spawns = validateList(
+    raw.spawns,
+    gameConfig.maxCars,
+    validateSpawnItem,
+    "field:spawns",
+  );
+  if (!spawns.ok) {
+    return spawns;
+  }
+  return {
+    ok: true,
+    value: {
+      v: PROTOCOL_VERSION,
+      t: "start",
+      mid: raw.mid,
+      seed: raw.seed,
+      cfg: cfg.value,
+      spawns: spawns.value,
+    },
+  };
+}
+
+export function validateReady(
+  raw: unknown,
+  expectedMid: number,
+): ParseResult<ReadyMessage> {
+  if (!isRecord(raw)) {
+    return fail("not-object");
+  }
+  const envelopeError = checkEnvelope(raw, "ready");
+  if (envelopeError !== null) {
+    return fail(envelopeError);
+  }
+  if (!isInt(raw.mid, 0, SEQ_MAX)) {
+    return fail("field:mid");
+  }
+  if (raw.mid !== expectedMid) {
+    return fail("mid-mismatch");
+  }
+  return { ok: true, value: { v: PROTOCOL_VERSION, t: "ready", mid: raw.mid } };
 }
 
 export function createInvalidCounter(): InvalidCounter {

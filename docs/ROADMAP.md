@@ -67,10 +67,10 @@ Device targets: iPad (current iPadOS, Safari) primary; desktop Chrome for develo
 
 | # | Task | Done when |
 |---|------|-----------|
-| P2.1 | Confirm for the pinned PeerJS version: create peer, connect, `reliable` option per connection, close events. Source already read for 1.5.5 (`reliable` per connection). Device test for A-01 and A-02. | ARCHITECTURE section 13 updated with source URLs and device results. |
-| P2.2 | `Transport` interface, `PeerTransport`, `LocalTransport`. | Unit tests pass for `LocalTransport`. |
-| P2.3 | Room code generation and `asph-` mapping. | Unit tests for alphabet, length, collision retry. |
-| P2.4 | Minimal ping/pong between host and one client, on desktop and iPad. | RTT displayed. |
+| P2.1 | Confirm for the pinned PeerJS version: create peer, connect, `reliable` option per connection, close events. Source already read for 1.5.5 (`reliable` per connection). Device test for A-01 and A-02. | ARCHITECTURE section 13 updated with source URLs and device results. Status: source read; device test pending. |
+| P2.2 | `Transport` interface, `PeerTransport`, `LocalTransport`. | Unit tests pass for `LocalTransport`. Status: implemented, device test pending. |
+| P2.3 | Room code generation and `asph-` mapping. | Unit tests for alphabet, length, collision retry. Status: implemented, device test pending. |
+| P2.4 | Minimal ping/pong between host and one client, on desktop and iPad. | RTT displayed. Status: implemented, device test pending. |
 | P2.5 | Device tests use the GitHub Pages deployment (HTTPS, secure context). A tunnel is only needed for local `npm run dev` on iPad, if used at all. | Documented in `docs/ARCHITECTURE.md` section 11. |
 | P2.6 | Connection test on iPad over Wi-Fi and mobile data, STUN only. Record success rate per network type. | Results table added to this file. |
 
@@ -85,7 +85,7 @@ Device targets: iPad (current iPadOS, Safari) primary; desktop Chrome for develo
 | # | Task | Done when |
 |---|------|-----------|
 | P3.1 | Protocol messages and codec (NETWORK_PROTOCOL 4), validation (section 7). | Round-trip and validation tests pass. |
-| P3.2 | Host session: lobby, `hello`, `welcome`, `lobby` broadcast, `start`, `ready`. | Two clients join and see the lobby. |
+| P3.2 | Host session: lobby, `hello`, `welcome`, `lobby` broadcast, `start`, `ready`. | Two clients join and see the lobby. Status: lobby UI done, desktop two-tab test pending. |
 | P3.3 | Input path: `in` 30 Hz, zero-order hold, 500 ms timeout to neutral. | Unit tests pass. |
 | P3.4 | Snapshot broadcast 20 Hz, `SnapshotBuffer`, remote interpolation at 100 ms. | Remote car motion smooth on iPad. |
 | P3.5 | Shadow simulation and reconciliation for own car (ARCHITECTURE 6.8). | Prototype: own car steering feels responsive at simulated 100 ms RTT (use a network throttle in dev). |
@@ -107,7 +107,7 @@ Device targets: iPad (current iPadOS, Safari) primary; desktop Chrome for develo
 |---|------|-----------|
 | P4.1 | Support up to 4 humans (G-06). | Four browsers complete a match. |
 | P4.2 | Bot FSM (`BotController`) with `BotProfiles` (Easy, Normal, Hard). | Bots collect bills, deliver, attack and evade in test arena. |
-| P4.3 | Mixed lobby: bot count slider, slot fill (G-07). | 2 humans + 2 bots completes a match. |
+| P4.3 | Mixed lobby: bot count slider, slot fill (G-07). Note: CPU count in lobby UI done; not yet used by the match. | 2 humans + 2 bots completes a match. |
 | P4.4 | Solo vs CPU mode from start screen (no network). | G-01 passes on iPad. |
 | P4.5 | Reconnect with token (NETWORK_PROTOCOL 8), 45 s window. | Disconnect and rejoin test passes. Bot takes slot in window expiry. |
 | P4.6 | Host-loss handling: banner, return to start, cleared storage. | Test passes. |
@@ -164,5 +164,6 @@ Device targets: iPad (current iPadOS, Safari) primary; desktop Chrome for develo
 |------|------|--------|--------|
 | 2026-11-20 | Matter sim.step mean/p95 (4 cars, 7 bills, 1200 steps) | 0.0215 ms mean, 0.0439 ms p95; tunneling (P1.8) pending | desktop, Node, not iPad |
 | 2026-11-20 | Pixi frame time 8 cars (P1.9) | pending, headless not measurable | desktop Chrome pending, not iPad |
+| 2026-11-20 | P2 unit tests only (fake peers, no real network) | Handshake hello/welcome/reject and transport tests pass; no real-network result | desktop and iPad: pending |
 | – | PeerJS connect over mobile data (P2.6) | pending | – |
 | – | Snapshot bandwidth (P3) | pending | – |

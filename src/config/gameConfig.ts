@@ -44,6 +44,8 @@ export interface GameConfigShape {
   readonly reconnectWindowMs: number;
   readonly inputTimeoutMs: number;
   readonly hostSilenceTimeoutMs: number;
+  readonly lobbyConnectTimeoutMs: number;
+  readonly matchReadyTimeoutMs: number;
   readonly fixedStepHz: number;
   readonly visualSeed: number;
   readonly maxFrameDeltaMs: number;
@@ -157,6 +159,8 @@ export const gameConfig = {
   reconnectWindowMs: 45000,
   inputTimeoutMs: 500,
   hostSilenceTimeoutMs: 15000,
+  lobbyConnectTimeoutMs: 10000,
+  matchReadyTimeoutMs: 5000,
   fixedStepHz: 60,
   visualSeed: 1337,
   maxFrameDeltaMs: 250,

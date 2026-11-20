@@ -9,4 +9,5 @@ export type ChannelKind = "reliable" | "unreliable";
 export interface PeerEvent {
   readonly kind: "open" | "close" | "error";
   readonly peerId: PeerId;
+  readonly detail?: string;
 }

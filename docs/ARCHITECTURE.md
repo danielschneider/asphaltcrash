@@ -452,7 +452,7 @@ ESLint config format: the config is `eslint.config.mjs`, not `eslint.config.ts`.
 ## 13. Assumptions and verification status
 | ID | Assumption | Status |
 |----|------------|--------|
-| A-01 | PeerJS public cloud is reachable from iPadOS Safari and supports data channels. | To verify at P2 |
+| A-01 | PeerJS public cloud is reachable from iPadOS Safari and supports data channels. | Not verified on device (P2.6). Unit tests use fake peers only. |
 | A-02 | PeerJS `reliable: false` yields unordered, non-retransmitted delivery on iPadOS Safari. Source confirms the flag is per connection (PeerJS 1.5.5). | Partly verified (source). Device test P2.1 |
 | A-03 | `navigator.wakeLock` is available on iPadOS 16.4+. | To verify on device |
 | A-04 | `100dvh` is supported on target iPadOS version. | To verify on device |
@@ -490,3 +490,4 @@ ESLint config format: the config is `eslint.config.mjs`, not `eslint.config.ts`.
 | ADR-019 | Renderer seam: `WorldView` input; `ParticleContainer` imported from `pixi.js` main entry (subpath has no .d.ts) | Accepted |
 | ADR-020 | `SessionController`: solo states only; network states are placeholders | Accepted |
 | ADR-021 | Static checks: import-x (cycles, duplicates), sonarjs (complexity in sim core), knip (unused code), coverage-v8 (report only, no threshold); eslint-plugin-boundaries skipped (ETARGET `@boundaries/config@1.0.3`), dependency-cruiser installed but unused | Accepted |
+| ADR-022 | PeerJS 1.5.5 pinned; injected PeerFactory; one reliable plus one unreliable DataConnection per peer; JSON serialization; handshake in src/network/session | Accepted |

@@ -4,8 +4,11 @@ import type { MatchSnapshot } from "../../../src/types/game";
 import {
   decodeInput,
   decodeSnapshot,
+  encodeAngle,
   encodeInput,
   encodeSnapshot,
+  fromSnapMessage,
+  toSnapMessage,
 } from "../../../src/network/protocol/codec";
 import {
   createInvalidCounter,
@@ -153,6 +156,19 @@ describe("codec snapshot rejection", () => {
   it.each(cases)("rejects %s with a reason", (_name, text, reason) => {
     const result = decodeSnapshot(text);
     expect(result).toEqual({ ok: false, reason });
+  });
+});
+
+describe("codec fromSnapMessage", () => {
+  it("maps a wire snap to a MatchSnapshot without touching the source", () => {
+    const source = makeSnapshot(3);
+    const wire = toSnapMessage(source, 4);
+    const mapped = fromSnapMessage(wire);
+    expect(mapped.tick).toBe(source.tick);
+    expect(mapped.cars.map((c) => c.pid)).toEqual([0, 1, 2]);
+    expect(mapped.cars[1]?.score).toBe(source.cars[1]?.score);
+    expect(mapped.bills).toHaveLength(12);
+    expect(wire.cars[0]?.[3]).toBe(encodeAngle(source.cars[0]?.angle ?? 0));
   });
 });
 

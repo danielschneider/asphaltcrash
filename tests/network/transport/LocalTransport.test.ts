@@ -43,6 +43,18 @@ describe("LocalTransport", () => {
     expect(b.invalid.count("local-a")).toBe(1);
   });
 
+  it("sendTo delivers only to the matching end", () => {
+    const [a, b] = createLocalPair();
+    const inboxA: unknown[] = [];
+    const inboxB: unknown[] = [];
+    a.transport.onMessage((msg) => inboxA.push(msg));
+    b.transport.onMessage((msg) => inboxB.push(msg));
+    a.transport.sendTo("local-b", inputMessage(5), "reliable");
+    a.transport.sendTo("local-x", inputMessage(6), "reliable");
+    expect(inboxB).toEqual([inputMessage(5)]);
+    expect(inboxA).toEqual([]);
+  });
+
   it("delivers nothing after close", () => {
     const [a, b] = createLocalPair();
     let calls = 0;

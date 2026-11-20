@@ -83,6 +83,33 @@ export function toSnapMessage(
   };
 }
 
+export function fromSnapMessage(message: SnapMessage): MatchSnapshot {
+  return {
+    tick: message.k,
+    timeRemainingMs: message.tm,
+    cars: message.cars.map(
+      ([pid, x, y, a, vx, vy, hp, flags, cargo, score]): CarSnapshot => ({
+        pid,
+        x,
+        y,
+        angle: decodeAngle(a),
+        vx,
+        vy,
+        hp,
+        flags,
+        cargo,
+        score,
+      }),
+    ),
+    bills: message.bills.map(([id, x, y, value]): BillSnapshot => ({
+      id,
+      x,
+      y,
+      value,
+    })),
+  };
+}
+
 export function encodeSnapshot(
   snapshot: MatchSnapshot,
   ackSeq: number,
@@ -99,41 +126,17 @@ export function decodeSnapshot(text: string): DecodeResult<DecodedSnapshot> {
   if (!result.ok) {
     return result;
   }
-  const message = result.value;
   return {
     ok: true,
     value: {
-      ackSeq: message.ak,
-      snapshot: {
-        tick: message.k,
-        timeRemainingMs: message.tm,
-        cars: message.cars.map(
-          ([pid, x, y, a, vx, vy, hp, flags, cargo, score]): CarSnapshot => ({
-            pid,
-            x,
-            y,
-            angle: decodeAngle(a),
-            vx,
-            vy,
-            hp,
-            flags,
-            cargo,
-            score,
-          }),
-        ),
-        bills: message.bills.map(([id, x, y, value]): BillSnapshot => ({
-          id,
-          x,
-          y,
-          value,
-        })),
-      },
+      ackSeq: result.value.ak,
+      snapshot: fromSnapMessage(result.value),
     },
   };
 }
 
-export function encodeInput(frame: InputFrame): string {
-  const message: InputMessage = {
+export function toInputMessage(frame: InputFrame): InputMessage {
+  return {
     v: PROTOCOL_VERSION,
     t: "in",
     s: Math.max(0, Math.floor(frame.seq)),
@@ -141,7 +144,10 @@ export function encodeInput(frame: InputFrame): string {
     st: quantizeUnit(frame.steer),
     a: frame.action ? 1 : 0,
   };
-  return JSON.stringify(message);
+}
+
+export function encodeInput(frame: InputFrame): string {
+  return JSON.stringify(toInputMessage(frame));
 }
 
 export function decodeInput(text: string): DecodeResult<InputFrame> {

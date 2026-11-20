@@ -1,0 +1,211 @@
+import { gameConfig } from "../config/gameConfig";
+import type { InputFrame } from "../game/input/InputFrame";
+import type { MatchSimulation } from "../game/sim/MatchSimulation";
+import { timerRemainingMs } from "../game/sim/Scoring";
+import { resolveWinners } from "../game/WorldView";
+import { InputReceiver } from "../network/match/InputReceiver";
+import { SnapshotPump } from "../network/match/SnapshotPump";
+import { buildStart } from "../network/match/startMessage";
+import {
+  PROTOCOL_VERSION,
+  type EndMessage,
+  type NetworkMessage,
+  type ScoreItem,
+} from "../network/protocol/messages";
+import { validateReady } from "../network/protocol/validate";
+import type { Transport } from "../network/transport/Transport";
+import type { BotDifficulty, MatchSetup } from "../types/game";
+import type { ChannelKind, PeerId } from "../types/network";
+
+export const MATCH_HOST_PHASE = {
+  idle: "idle",
+  waiting: "waiting",
+  running: "running",
+  finished: "finished",
+} as const;
+
+export type MatchHostPhase =
+  (typeof MATCH_HOST_PHASE)[keyof typeof MATCH_HOST_PHASE];
+
+export interface MatchHostDeps {
+  readonly transport: Transport;
+  readonly now: () => number;
+  readonly setTimeout: (handler: () => void, ms: number) => unknown;
+  readonly clearTimeout: (handle: unknown) => void;
+  readonly newMatchId: () => number;
+  readonly makeSim: (setup: MatchSetup) => MatchSimulation;
+  readonly seed: number;
+  readonly humanPids: readonly number[];
+  readonly botPids: readonly number[];
+  readonly botDifficulty: BotDifficulty;
+  readonly matchSeconds: number;
+  readonly pidForPeer: (peerId: PeerId) => number | undefined;
+  readonly peerIdForPid: (pid: number) => PeerId | undefined;
+  readonly hostInput: () => InputFrame;
+}
+
+const HOST_PID = 0;
+const STEP_MS = 1000 / gameConfig.fixedStepHz;
+const STEP_EPSILON_MS = 1e-6;
+// The sim keeps no per-player cash/kill/delivery counters, only a score; the end row uses score as cash and delivered, kills = 0.
+const END_KILLS = 0;
+
+export class MatchHost {
+  private readonly deps: MatchHostDeps;
+  private readonly setup: MatchSetup;
+  private readonly sim: MatchSimulation;
+  private readonly clientPids: readonly number[];
+  private readonly receiver = new InputReceiver();
+  private readonly acks = new Map<number, number>();
+  private readonly pump: SnapshotPump;
+  private readonly readyPids = new Set<number>();
+  private phaseValue: MatchHostPhase = MATCH_HOST_PHASE.idle;
+  private matchId = 0;
+  private readyTimer: unknown = null;
+  private lastNowMs = 0;
+  private accumulatorMs = 0;
+
+  constructor(deps: MatchHostDeps) {
+    this.deps = deps;
+    this.setup = {
+      seed: deps.seed,
+      humanPlayerIds: deps.humanPids,
+      botPlayerIds: deps.botPids,
+      botDifficulty: deps.botDifficulty,
+      matchSeconds: deps.matchSeconds,
+    };
+    this.clientPids = deps.humanPids.filter((pid) => pid !== HOST_PID);
+    this.sim = deps.makeSim(this.setup);
+    this.pump = new SnapshotPump(this.sim, this.acks);
+  }
+
+  get phase(): MatchHostPhase {
+    return this.phaseValue;
+  }
+
+  start(): void {
+    if (this.phaseValue !== MATCH_HOST_PHASE.idle) return;
+    this.matchId = this.deps.newMatchId();
+    this.phaseValue = MATCH_HOST_PHASE.waiting;
+    const message = buildStart(this.setup, this.matchId);
+    for (const pid of this.clientPids) {
+      this.sendToPid(pid, message, "reliable");
+    }
+    if (this.clientPids.length === 0) {
+      this.markRunning();
+      return;
+    }
+    this.readyTimer = this.deps.setTimeout(() => {
+      this.readyTimer = null;
+      this.markRunning();
+    }, gameConfig.matchReadyTimeoutMs);
+  }
+
+  tick(nowMs: number): void {
+    if (this.phaseValue !== MATCH_HOST_PHASE.running) return;
+    const deltaMs = Math.min(
+      Math.max(nowMs - this.lastNowMs, 0),
+      gameConfig.maxFrameDeltaMs,
+    );
+    this.lastNowMs = nowMs;
+    this.accumulatorMs += deltaMs;
+    while (
+      this.phaseValue === MATCH_HOST_PHASE.running &&
+      this.accumulatorMs + STEP_EPSILON_MS >= STEP_MS
+    ) {
+      this.accumulatorMs -= STEP_MS;
+      this.stepOnce(nowMs);
+    }
+  }
+
+  handleInbound(msg: NetworkMessage, fromPeerId: PeerId): boolean {
+    const pid = this.deps.pidForPeer(fromPeerId);
+    if (pid === undefined || !this.clientPids.includes(pid)) return false;
+    if (msg.t === "in") {
+      return this.receiver.accept(pid, msg, this.deps.now());
+    }
+    if (msg.t === "ready") {
+      return this.handleReady(msg, pid);
+    }
+    return false;
+  }
+
+  private handleReady(msg: NetworkMessage, pid: number): boolean {
+    if (this.phaseValue !== MATCH_HOST_PHASE.waiting) return false;
+    const result = validateReady(msg, this.matchId);
+    if (!result.ok) return false;
+    this.readyPids.add(pid);
+    if (this.readyPids.size === this.clientPids.length) {
+      this.markRunning();
+    }
+    return true;
+  }
+
+  private markRunning(): void {
+    if (this.readyTimer !== null) {
+      this.deps.clearTimeout(this.readyTimer);
+      this.readyTimer = null;
+    }
+    this.phaseValue = MATCH_HOST_PHASE.running;
+    this.lastNowMs = this.deps.now();
+    this.accumulatorMs = 0;
+  }
+
+  private stepOnce(nowMs: number): void {
+    this.sim.setInput(HOST_PID, this.deps.hostInput());
+    for (const pid of this.clientPids) {
+      this.sim.setInput(pid, this.receiver.latest(pid, nowMs));
+    }
+    this.sim.step();
+    const tick = this.sim.tick;
+    if (this.pump.due(tick)) {
+      this.broadcastSnapshots();
+    }
+    if (timerRemainingMs(tick, this.setup.matchSeconds) === 0) {
+      this.finish();
+    }
+  }
+
+  private broadcastSnapshots(): void {
+    const snapshot = this.pump.capture();
+    for (const pid of this.clientPids) {
+      this.acks.set(pid, this.receiver.lastSeq(pid));
+      this.sendToPid(
+        pid,
+        this.pump.buildSnapshotMessage(snapshot, pid),
+        "unreliable",
+      );
+    }
+  }
+
+  private sendToPid(
+    pid: number,
+    message: NetworkMessage,
+    channel: ChannelKind,
+  ): void {
+    const peerId = this.deps.peerIdForPid(pid);
+    if (peerId === undefined) return;
+    this.deps.transport.sendTo(peerId, message, channel);
+  }
+
+  private finish(): void {
+    this.phaseValue = MATCH_HOST_PHASE.finished;
+    const snapshot = this.pump.capture();
+    const scores = new Map(snapshot.cars.map((car) => [car.pid, car.score]));
+    const end: EndMessage = {
+      v: PROTOCOL_VERSION,
+      t: "end",
+      mid: this.matchId,
+      scores: snapshot.cars.map((car): ScoreItem => [
+        car.pid,
+        car.score,
+        END_KILLS,
+        car.score,
+      ]),
+      winners: resolveWinners(scores),
+    };
+    for (const pid of this.clientPids) {
+      this.sendToPid(pid, end, "reliable");
+    }
+  }
+}

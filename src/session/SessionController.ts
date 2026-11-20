@@ -1,3 +1,4 @@
+import { gameConfig } from "../config/gameConfig";
 import { CarAudio } from "../game/audio/CarAudio";
 import { Engine } from "../game/Engine";
 import { InputBuffer } from "../game/input/InputBuffer";
@@ -5,7 +6,34 @@ import { createInputBufferSource } from "../game/input/LocalInputSource";
 import type { InputSource } from "../game/input/InputSource";
 import { MatchSimulation } from "../game/sim/MatchSimulation";
 import { createWorldRenderer, type WorldRenderer } from "../game/Renderer";
+import { createPeerJsFactory } from "../network/transport/peerJsFactory";
+import {
+  PeerTransport,
+  type PeerFactory,
+} from "../network/transport/PeerTransport";
+import type { Unsubscribe } from "../network/transport/Transport";
+import {
+  attachHandshakeClient,
+  sendHello,
+  type HandshakeClient,
+  type HandshakeOutcome,
+} from "../network/session/HandshakeClient";
+import { RosterHandshakeHost } from "../network/session/RosterHandshakeHost";
+import {
+  defaultRandomBytes,
+  generateUniqueRoomCode,
+  hostPeerIdFor,
+  validateRoomCode,
+  type RandomBytes,
+} from "../network/room/roomCode";
+import { clampBotCount } from "./lobbyRoster";
+import { generatePlayerName, generateUniquePlayerName } from "./playerNames";
 import { hudStore, type HudStore } from "../store/hudStore";
+import {
+  lobbyStore,
+  peerErrorToMessage,
+  reasonToMessage,
+} from "../store/lobbyStore";
 import type { ArenaView, BotDifficulty, MatchSetup } from "../types/game";
 
 export const SESSION_STATE = {
@@ -28,6 +56,17 @@ export interface SoloMatchOptions {
   readonly seed: number;
 }
 
+export interface LobbyTimers {
+  setTimeout(callback: () => void, ms: number): unknown;
+  clearTimeout(handle: unknown): void;
+}
+
+export interface LobbyDeps {
+  readonly peerFactory: PeerFactory;
+  readonly timers: LobbyTimers;
+  readonly randomBytes: RandomBytes;
+}
+
 export interface SessionDeps {
   readonly createRenderer: (
     host: HTMLElement,
@@ -37,9 +76,23 @@ export interface SessionDeps {
   readonly createAudio?: () => CarAudio;
   readonly requestFrame?: (cb: (t: number) => void) => number;
   readonly cancelFrame?: (id: number) => void;
+  readonly lobby?: Partial<LobbyDeps>;
 }
 
 const LOCAL_PLAYER_ID = 0;
+const HOST_PID = 0;
+const HELLO_TOKEN_LENGTH = 16;
+const TOKEN_ALPHABET =
+  "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+const DEFAULT_LOBBY_DEPS: LobbyDeps = {
+  peerFactory: createPeerJsFactory(),
+  timers: {
+    setTimeout: (callback, ms) => setTimeout(callback, ms),
+    clearTimeout: (handle) =>
+      clearTimeout(handle as Parameters<typeof clearTimeout>[0]),
+  },
+  randomBytes: defaultRandomBytes,
+};
 const DEFAULT_DEPS: SessionDeps = {
   createRenderer: createWorldRenderer,
   hud: hudStore,
@@ -60,19 +113,31 @@ function buildSoloSetup(options: SoloMatchOptions): MatchSetup {
   };
 }
 
+function createHelloToken(randomBytes: RandomBytes): string {
+  return Array.from(randomBytes(HELLO_TOKEN_LENGTH), (byte) =>
+    TOKEN_ALPHABET.charAt(byte % TOKEN_ALPHABET.length),
+  ).join("");
+}
+
 export class SessionController {
   private state: SessionState = SESSION_STATE.idle;
   private readonly listeners = new Set<() => void>();
   private readonly inputBuffer = new InputBuffer();
   private readonly deps: SessionDeps;
+  private readonly lobbyDeps: LobbyDeps;
   private engine: Engine | null = null;
   private renderer: WorldRenderer | null = null;
   private readonly audio: CarAudio;
   private unsubscribeHud: (() => void) | null = null;
   private startToken = 0;
+  private lobbyTransport: PeerTransport | null = null;
+  private handshakeClient: HandshakeClient | null = null;
+  private lobbyUnsubscribers: Unsubscribe[] = [];
+  private connectTimer: unknown = null;
 
   constructor(deps: SessionDeps = DEFAULT_DEPS) {
     this.deps = deps;
+    this.lobbyDeps = { ...DEFAULT_LOBBY_DEPS, ...deps.lobby };
     this.audio = deps.createAudio ? deps.createAudio() : new CarAudio();
   }
 
@@ -147,6 +212,106 @@ export class SessionController {
     this.engine?.setPaused(on);
   }
 
+  createRoom(name: string): void {
+    this.assertIdle("create room");
+    const code = generateUniqueRoomCode(
+      () => false,
+      undefined,
+      this.lobbyDeps.randomBytes,
+    );
+    if (code === null) {
+      lobbyStore.set({ status: "error", error: "Could not create room" });
+      return;
+    }
+    const hostName = name.trim() || generatePlayerName();
+    const roster = new RosterHandshakeHost(
+      { pid: HOST_PID, name: hostName },
+      (players) => lobbyStore.set({ players }),
+      (taken) => generateUniquePlayerName(taken),
+    );
+    this.lobbyTransport = new PeerTransport({
+      role: "host",
+      peerId: hostPeerIdFor(code),
+      peerFactory: this.lobbyDeps.peerFactory,
+      handshake: roster,
+    });
+    this.lobbyUnsubscribers = [
+      this.lobbyTransport.onPeerChange((event) => {
+        if (
+          event.kind === "error" &&
+          event.peerId === hostPeerIdFor(code) &&
+          this.state === SESSION_STATE.hostingLobby
+        ) {
+          this.failLobby("connect-error", event.detail);
+        }
+      }),
+    ];
+    lobbyStore.set({
+      role: "host",
+      roomCode: code,
+      status: "ready",
+      pid: HOST_PID,
+      players: [{ pid: HOST_PID, name: hostName }],
+      bots: 0,
+      error: null,
+    });
+    this.setState(SESSION_STATE.hostingLobby);
+  }
+
+  // Local only: the CPU count is not sent to clients and does not yet reach the match.
+  setLobbyBotCount(count: number): void {
+    if (this.state !== SESSION_STATE.hostingLobby) return;
+    lobbyStore.set({ bots: clampBotCount(count) });
+  }
+
+  joinRoom(code: string, name: string): void {
+    this.assertIdle("join room");
+    if (!validateRoomCode(code)) {
+      lobbyStore.set({ status: "error", error: "Invalid room code" });
+      return;
+    }
+    const hostPeerId = hostPeerIdFor(code);
+    const transport = new PeerTransport({
+      role: "client",
+      hostPeerId,
+      peerFactory: this.lobbyDeps.peerFactory,
+    });
+    const handshake = attachHandshakeClient(transport, hostPeerId);
+    const token = createHelloToken(this.lobbyDeps.randomBytes);
+    this.lobbyTransport = transport;
+    this.handshakeClient = handshake;
+    this.lobbyUnsubscribers = [
+      transport.onPeerChange((event) => {
+        if (event.peerId !== hostPeerId) {
+          return;
+        }
+        if (event.kind === "open") {
+          sendHello(transport, name.trim(), token);
+        } else if (
+          event.kind === "error" &&
+          this.state === SESSION_STATE.joining
+        ) {
+          this.failLobby("connect-error", event.detail);
+        }
+      }),
+      handshake.onOutcome((outcome) => this.handleHandshakeOutcome(outcome)),
+    ];
+    this.connectTimer = this.lobbyDeps.timers.setTimeout(() => {
+      this.connectTimer = null;
+      this.failLobby("timeout");
+    }, gameConfig.lobbyConnectTimeoutMs);
+    lobbyStore.set({
+      role: "client",
+      roomCode: code,
+      status: "connecting",
+      pid: null,
+      players: [],
+      bots: 0,
+      error: null,
+    });
+    this.setState(SESSION_STATE.joining);
+  }
+
   backToIdle(): void {
     this.startToken += 1;
     this.detachHud();
@@ -155,7 +320,64 @@ export class SessionController {
     this.audio.dispose();
     this.renderer?.destroy();
     this.renderer = null;
+    if (this.lobbyTransport !== null) {
+      this.teardownLobby();
+      lobbyStore.reset();
+    }
     this.setState(SESSION_STATE.idle);
+  }
+
+  private handleHandshakeOutcome(outcome: HandshakeOutcome): void {
+    if (outcome.kind === "reject") {
+      this.failLobby(outcome.reason);
+      return;
+    }
+    this.clearConnectTimer();
+    lobbyStore.set({ status: "ready", pid: outcome.pid, error: null });
+    this.setState(SESSION_STATE.joinedLobby);
+  }
+
+  private failLobby(reason: string, detail?: string): void {
+    this.teardownLobby();
+    lobbyStore.set({
+      role: "none",
+      roomCode: null,
+      status: "error",
+      pid: null,
+      players: [],
+      bots: 0,
+      error:
+        reason === "connect-error"
+          ? peerErrorToMessage(detail)
+          : reasonToMessage(reason),
+    });
+    this.setState(SESSION_STATE.idle);
+  }
+
+  private teardownLobby(): void {
+    this.clearConnectTimer();
+    for (const unsubscribe of this.lobbyUnsubscribers) {
+      unsubscribe();
+    }
+    this.lobbyUnsubscribers = [];
+    this.handshakeClient?.dispose();
+    this.handshakeClient = null;
+    this.lobbyTransport?.close();
+    this.lobbyTransport = null;
+  }
+
+  private clearConnectTimer(): void {
+    if (this.connectTimer === null) return;
+    this.lobbyDeps.timers.clearTimeout(this.connectTimer);
+    this.connectTimer = null;
+  }
+
+  private assertIdle(action: string): void {
+    if (this.state !== SESSION_STATE.idle) {
+      throw new Error(
+        `SessionController: cannot ${action} from state ${this.state}`,
+      );
+    }
   }
 
   private watchForMatchEnd(): void {

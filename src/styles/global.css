@@ -89,6 +89,40 @@ body,
   font-weight: 600;
 }
 
+.mode-switch {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.lobby-subtitle {
+  margin: 0;
+  font-size: 1.25rem;
+  color: #b8bcc4;
+}
+
+.lobby-players {
+  margin: 0;
+  padding: 0;
+  text-align: center;
+  list-style: none;
+}
+
+.lobby-bots-total {
+  margin: 0;
+  color: #b8bcc4;
+  text-align: center;
+}
+
 .result-list {
   display: flex;
   flex-direction: column;

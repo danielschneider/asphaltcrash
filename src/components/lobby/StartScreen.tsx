@@ -1,10 +1,13 @@
 import { useId, useState, type ChangeEvent } from "react";
 import { gameConfig } from "../../config/gameConfig";
+import { useJoinLinkCode } from "../../hooks/useJoinLinkCode";
 import { BOT_DIFFICULTIES, type BotDifficulty } from "../../types/game";
 import {
   sessionController,
   type SoloMatchOptions,
 } from "../../session/SessionController";
+import { MultiplayerPanel } from "./MultiplayerPanel";
+import { ModeSwitch, START_MODES, type StartMode } from "./ModeSwitch";
 
 interface StartScreenProps {
   readonly onStart: (options: SoloMatchOptions) => void;
@@ -36,6 +39,10 @@ function createSeed(): number {
 export function StartScreen({ onStart }: StartScreenProps) {
   const [botCount, setBotCount] = useState<number>(gameConfig.botDefaultCount);
   const [difficulty, setDifficulty] = useState<BotDifficulty>("normal");
+  const joinLinkCode = useJoinLinkCode();
+  const [mode, setMode] = useState<StartMode>(
+    joinLinkCode !== "" ? START_MODES.multiplayer : START_MODES.solo,
+  );
   const botCountId = useId();
   const difficultyId = useId();
 
@@ -64,43 +71,47 @@ export function StartScreen({ onStart }: StartScreenProps) {
     <div className="start-screen">
       <h1 className="start-title">AsphaltCrash</h1>
       <div className="start-form">
-        <div className="start-field">
-          <label htmlFor={botCountId}>Bots: {botCount}</label>
-          <input
-            id={botCountId}
-            type="range"
-            min={MIN_BOTS}
-            max={MAX_BOTS}
-            step={1}
-            value={botCount}
-            onChange={handleBotCountChange}
-          />
-        </div>
-        <div className="start-field">
-          <label htmlFor={difficultyId}>Difficulty</label>
-          <select
-            id={difficultyId}
-            className="start-select"
-            value={difficulty}
-            onChange={handleDifficultyChange}
-          >
-            {BOT_DIFFICULTIES.map((level) => (
-              <option key={level} value={level}>
-                {DIFFICULTY_LABELS[level]}
-              </option>
-            ))}
-          </select>
-        </div>
-        <button
-          type="button"
-          className="button button-primary"
-          onClick={handlePlay}
-        >
-          Play vs CPU
-        </button>
-        <button type="button" className="button" disabled>
-          Multiplayer (P2+)
-        </button>
+        <ModeSwitch mode={mode} onChange={setMode} />
+        {mode === START_MODES.solo ? (
+          <>
+            <div className="start-field">
+              <label htmlFor={botCountId}>Bots: {botCount}</label>
+              <input
+                id={botCountId}
+                type="range"
+                min={MIN_BOTS}
+                max={MAX_BOTS}
+                step={1}
+                value={botCount}
+                onChange={handleBotCountChange}
+              />
+            </div>
+            <div className="start-field">
+              <label htmlFor={difficultyId}>Difficulty</label>
+              <select
+                id={difficultyId}
+                className="start-select"
+                value={difficulty}
+                onChange={handleDifficultyChange}
+              >
+                {BOT_DIFFICULTIES.map((level) => (
+                  <option key={level} value={level}>
+                    {DIFFICULTY_LABELS[level]}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <button
+              type="button"
+              className="button button-primary"
+              onClick={handlePlay}
+            >
+              Play vs CPU
+            </button>
+          </>
+        ) : (
+          <MultiplayerPanel initialJoinCode={joinLinkCode} />
+        )}
       </div>
     </div>
   );

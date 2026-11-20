@@ -11,6 +11,7 @@ export type Unsubscribe = () => void;
 export interface Transport {
   readonly role: PeerRole;
   send(message: NetworkMessage, channel: ChannelKind): void;
+  sendTo(peerId: PeerId, message: NetworkMessage, channel: ChannelKind): void;
   onMessage(
     handler: (msg: NetworkMessage, fromPeerId: PeerId) => void,
   ): Unsubscribe;

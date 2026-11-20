@@ -1,4 +1,4 @@
-import { gameConfig, type SpawnPoint } from "../../config/gameConfig";
+import { gameConfig } from "../../config/gameConfig";
 import {
   type ArenaView,
   type BaseView,
@@ -9,6 +9,7 @@ import {
   type SimEvent,
   type SimEvents,
 } from "../../types/game";
+import { buildArenaView, spawnFor } from "../arena";
 import { BotController, type BotPerception } from "../bots/BotController";
 import { NEUTRAL_INPUT, type InputFrame } from "../input/InputFrame";
 import {
@@ -43,10 +44,6 @@ import {
 } from "./Scoring";
 import { secondsToMs } from "./time";
 
-const SPAWN_POOL: readonly SpawnPoint[] = [
-  ...gameConfig.humanSpawns,
-  ...gameConfig.botSpawns,
-];
 const MAX_PID = gameConfig.maxCars - 1;
 const BOOST_TICKS = ticksFromMs(secondsToMs(gameConfig.boostSeconds));
 const BOOST_COOLDOWN_TICKS = ticksFromMs(
@@ -74,14 +71,6 @@ export function getMatchTestHook(
   return testHooks.get(sim);
 }
 
-function spawnFor(pid: number): SpawnPoint {
-  const spawn = SPAWN_POOL[pid];
-  if (spawn === undefined) {
-    throw new Error(`MatchSimulation: no spawn for player ${pid}`);
-  }
-  return spawn;
-}
-
 function validatePids(setup: MatchSetup): void {
   const seen = new Set<number>();
   for (const pid of [...setup.humanPlayerIds, ...setup.botPlayerIds]) {
@@ -90,26 +79,6 @@ function validatePids(setup: MatchSetup): void {
     }
     seen.add(pid);
   }
-}
-
-function buildArena(setup: MatchSetup): ArenaView {
-  const bases: BaseView[] = [];
-  for (const pid of [...setup.humanPlayerIds, ...setup.botPlayerIds]) {
-    const spawn = spawnFor(pid);
-    bases.push({
-      pid,
-      x: spawn.x,
-      y: spawn.y,
-      width: gameConfig.baseWidth,
-      height: gameConfig.baseHeight,
-    });
-  }
-  return {
-    width: gameConfig.arenaWidth,
-    height: gameConfig.arenaHeight,
-    wallThickness: gameConfig.wallThickness,
-    bases,
-  };
 }
 
 function toSpawnRect(base: BaseView): BaseRect {
@@ -155,7 +124,7 @@ export class MatchSimulation {
   constructor(setup: MatchSetup) {
     validatePids(setup);
     this.setup = setup;
-    this.arenaView = buildArena(setup);
+    this.arenaView = buildArenaView(setup.humanPlayerIds, setup.botPlayerIds);
     this.pids = [...setup.humanPlayerIds, ...setup.botPlayerIds].sort(
       (a, b) => a - b,
     );
