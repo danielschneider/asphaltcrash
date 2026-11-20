@@ -54,6 +54,7 @@ const ATTACK_MIN_HP_FRACTION = 0.3;
 const EVADE_HP_FRACTION = 0.6;
 const RECOVER_BASE_DISTANCE_PX = 200;
 const FLEE_DISTANCE_PX = 300;
+const ARENA_MARGIN_PX = 200;
 const BOOST_ANGLE_RAD = 0.2;
 const BOOST_MIN_AGGRESSION = 0.5;
 const IDLE_DECISION: Decision = {
@@ -94,17 +95,26 @@ function nearestTo<T extends Point>(
   return best;
 }
 
+function clampToArena(point: Point): Point {
+  const margin = gameConfig.wallThickness + ARENA_MARGIN_PX;
+  return {
+    x: Math.min(gameConfig.arenaWidth - margin, Math.max(margin, point.x)),
+    y: Math.min(gameConfig.arenaHeight - margin, Math.max(margin, point.y)),
+  };
+}
+
+// Flee targets past a wall would pin the bot against it, so they are kept inside the arena.
 function pointAwayFrom(self: Point, threat: Point): Point {
   const dx = self.x - threat.x;
   const dy = self.y - threat.y;
   const length = Math.hypot(dx, dy);
   if (length < 1) {
-    return { x: self.x + FLEE_DISTANCE_PX, y: self.y };
+    return clampToArena({ x: self.x + FLEE_DISTANCE_PX, y: self.y });
   }
-  return {
+  return clampToArena({
     x: self.x + (dx / length) * FLEE_DISTANCE_PX,
     y: self.y + (dy / length) * FLEE_DISTANCE_PX,
-  };
+  });
 }
 
 export class BotController {

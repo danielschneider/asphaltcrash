@@ -1,7 +1,7 @@
 import Matter from "matter-js";
 import { gameConfig } from "../config/gameConfig";
 import { MS_PER_SECOND } from "./sim/time";
-import { aimDrive, type AimDrive } from "./sim/aimDrive";
+import { aimDrive, slideAim, type AimDrive } from "./sim/aimDrive";
 
 export interface PhysicsContact {
   readonly kind: "car-car" | "car-wall" | "car-bill" | "car-base";
@@ -65,6 +65,8 @@ const CATEGORY = { car: 0x0001, wall: 0x0002, sensor: 0x0004 } as const;
 const CAR_MASK = CATEGORY.car | CATEGORY.wall | CATEGORY.sensor;
 const ZERO: Vec2 = { x: 0, y: 0 };
 const NO_NORMALS: readonly Vec2[] = [];
+// Reverse for this many steps once blocked so the car clears the wall instead of re-entering it each step.
+const REVERSE_ESCAPE_STEPS = 20;
 
 export class PhysicsWorld {
   private readonly engine: Matter.Engine;
@@ -73,6 +75,7 @@ export class PhysicsWorld {
   private readonly metaByBodyId = new Map<number, BodyMeta>();
   private readonly pairs: Matter.Pair[] = [];
   private wallNormals = new Map<number, Vec2[]>();
+  private readonly reverseSteps = new Map<number, number>();
   private readonly handleCollision = (
     event: Matter.IEventCollision<Matter.Engine>,
   ): void => {
@@ -118,6 +121,7 @@ export class PhysicsWorld {
     if (!body) return;
     this.dropBody(body);
     this.cars.delete(pid);
+    this.reverseSteps.delete(pid);
   }
 
   setCarFrozen(pid: number, frozen: boolean): void {
@@ -191,7 +195,7 @@ export class PhysicsWorld {
       ),
     );
 
-    const drive = aimDrive(control.aimX, control.aimY, body.angle, forwardPxs);
+    const drive = this.driveFor(body, control, forwardPxs, normals);
     this.applySteer(body, drive.steer, forwardPxs);
     this.applyThrottle(
       body,
@@ -234,6 +238,7 @@ export class PhysicsWorld {
     Matter.Composite.clear(this.engine.world, false);
     Matter.Engine.clear(this.engine);
     this.cars.clear();
+    this.reverseSteps.clear();
     this.bills.clear();
     this.metaByBodyId.clear();
     this.pairs.length = 0;
@@ -288,6 +293,38 @@ export class PhysicsWorld {
   private dropBody(body: Matter.Body): void {
     Matter.Composite.remove(this.engine.world, body);
     this.metaByBodyId.delete(body.id);
+  }
+
+  private driveFor(
+    body: Matter.Body,
+    control: CarControl,
+    forwardPxs: number,
+    normals: readonly Vec2[],
+  ): AimDrive {
+    const pid = this.pidOf(body);
+    const steering = aimDrive(
+      control.aimX,
+      control.aimY,
+      body.angle,
+      forwardPxs,
+    );
+    const wallAim = slideAim(control.aimX, control.aimY, normals);
+    if (wallAim.isBlocked) {
+      this.reverseSteps.set(pid, REVERSE_ESCAPE_STEPS);
+    }
+    const remaining = this.reverseSteps.get(pid) ?? 0;
+    if (remaining > 0) {
+      this.reverseSteps.set(pid, remaining - 1);
+      return { steer: steering.steer, throttle: -1 };
+    }
+    return aimDrive(wallAim.aimX, wallAim.aimY, body.angle, forwardPxs);
+  }
+
+  private pidOf(body: Matter.Body): number {
+    for (const [pid, car] of this.cars) {
+      if (car === body) return pid;
+    }
+    return NO_PID;
   }
 
   private applySteer(
@@ -346,9 +383,17 @@ export class PhysicsWorld {
       const second = this.metaByBodyId.get(pair.bodyB.id);
       if (!first || !second) continue;
       if (first.kind === "car" && second.kind === "wall") {
-        pushNormal(normals, first.pid, negate(pair.collision.normal));
+        pushNormal(
+          normals,
+          first.pid,
+          wallToCarNormal(pair, pair.bodyB, pair.bodyA),
+        );
       } else if (first.kind === "wall" && second.kind === "car") {
-        pushNormal(normals, second.pid, pair.collision.normal);
+        pushNormal(
+          normals,
+          second.pid,
+          wallToCarNormal(pair, pair.bodyA, pair.bodyB),
+        );
       }
     }
     return normals;
@@ -532,6 +577,19 @@ function pushNormal(
 
 function negate(v: Vec2): Vec2 {
   return { x: -v.x, y: -v.y };
+}
+
+// Matter does not fix pair body order, so the normal is oriented from the wall centre toward the car centre.
+function wallToCarNormal(
+  pair: Matter.Pair,
+  wall: Matter.Body,
+  car: Matter.Body,
+): Vec2 {
+  const n = pair.collision.normal;
+  const toCar =
+    (car.position.x - wall.position.x) * n.x +
+    (car.position.y - wall.position.y) * n.y;
+  return toCar >= 0 ? { x: n.x, y: n.y } : negate(n);
 }
 
 function headingOf(angle: number): Vec2 {

@@ -225,4 +225,35 @@ describe("PhysicsWorld", () => {
     expect(Math.abs(yAfter - yAtImpact)).toBeGreaterThan(5);
     world.dispose();
   });
+
+  it("escapes a right-wall pin by reversing when aimed straight into the wall", () => {
+    const world = createWorld();
+    world.addCar(1, gameConfig.arenaWidth - 300, 800, 0);
+    for (let i = 0; i < 180; i += 1) {
+      world.applyControl(1, FULL, false);
+      world.step();
+    }
+    const pinnedX = world.getCar(1)?.x ?? NaN;
+    const WALL_AIM = { aimX: 1, aimY: 0, boost: false } as const;
+    for (let i = 0; i < 60; i += 1) {
+      world.applyControl(1, WALL_AIM, false);
+      world.step();
+    }
+    expect(world.getCar(1)?.x ?? NaN).toBeLessThan(pinnedX - 5);
+    world.dispose();
+  });
+
+  it("slides a car in a corner off the wall it is pinned against", () => {
+    const world = createWorld();
+    world.addCar(1, gameConfig.arenaWidth - 300, 800, -Math.PI / 4);
+    const aim = { aimX: 1, aimY: 0, boost: false } as const;
+    for (let i = 0; i < 240; i += 1) {
+      world.applyControl(1, aim, false);
+      world.step();
+    }
+    const car = world.getCar(1);
+    expect(car?.x ?? NaN).toBeLessThanOrEqual(gameConfig.arenaWidth + 1);
+    expect(car?.y ?? NaN).toBeGreaterThan(gameConfig.wallThickness);
+    world.dispose();
+  });
 });
