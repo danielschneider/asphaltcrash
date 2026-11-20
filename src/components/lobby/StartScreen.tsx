@@ -1,7 +1,10 @@
-import { useId, useRef, useState, type ChangeEvent } from "react";
+import { useId, useState, type ChangeEvent } from "react";
 import { gameConfig } from "../../config/gameConfig";
 import { BOT_DIFFICULTIES, type BotDifficulty } from "../../types/game";
-import type { SoloMatchOptions } from "../../session/SessionController";
+import {
+  sessionController,
+  type SoloMatchOptions,
+} from "../../session/SessionController";
 
 interface StartScreenProps {
   readonly onStart: (options: SoloMatchOptions) => void;
@@ -29,18 +32,10 @@ function createSeed(): number {
   return crypto.getRandomValues(new Uint32Array(1))[0] ?? 0;
 }
 
-// iPadOS Safari only starts audio after a user gesture; resuming here unlocks it for the match.
-function resumeAudio(context: AudioContext | null): AudioContext | null {
-  if (typeof AudioContext === "undefined") return null;
-  const current = context ?? new AudioContext();
-  void current.resume();
-  return current;
-}
-
+// iPadOS Safari only starts audio after a user gesture. The unlock runs synchronously in handlePlay.
 export function StartScreen({ onStart }: StartScreenProps) {
   const [botCount, setBotCount] = useState<number>(gameConfig.botDefaultCount);
   const [difficulty, setDifficulty] = useState<BotDifficulty>("normal");
-  const audioRef = useRef<AudioContext | null>(null);
   const botCountId = useId();
   const difficultyId = useId();
 
@@ -56,7 +51,7 @@ export function StartScreen({ onStart }: StartScreenProps) {
   };
 
   const handlePlay = (): void => {
-    audioRef.current = resumeAudio(audioRef.current);
+    sessionController.unlockAudio();
     onStart({
       botCount,
       botDifficulty: difficulty,

@@ -183,10 +183,16 @@ Total particle budget: 200 at once. Above that, new effects are skipped.
 
 Quality toggles in Settings: `Effects: full | reduced`, `Tire marks: on | off`. Reduced = no tire marks, half particle count.
 
-### 8.4 Audio (optional in v1, not blocking)
-- Engine hum (pitch = speed), crash, pickup chime, delivery cash, countdown beep.
-- Unlocked by the first user gesture (iOS requirement).
-- Mute toggle in Settings.
+### 8.4 Audio
+Implemented with the browser Web Audio API only (no audio library). Pure math lives in `src/game/audio/audioMath.ts`; the browser voice code is `src/game/audio/CarAudio.ts`.
+- Engine: sawtooth oscillator per car, lowpass filtered. Pitch rises with speed and slightly with throttle (`audioEngineIdleHz` to `audioEngineMaxHz`). Loudness rises with speed and throttle from `audioEngineIdleGain` (never silent at rest).
+- Acceleration: filtered noise "push" layer, active only when throttle is above `audioAccelThreshold` (boost counts as full throttle).
+- Tyre squeal: filtered noise at about 2.5 kHz, active on sharp turns at speed (yaw rate above `audioSqueakTurnRate`, speed fraction above `audioSqueakMinSpeedFraction`), full at `audioSqueakFullTurnRate`.
+- Own car is played at `audioOwnCarGain`. Other cars are played at `audioOtherCarGain` and fade linearly with distance to the local car, silent at `audioHearingRadiusPx`. Destroyed cars are silent.
+- Speed, throttle and yaw rate are derived per car from position and angle changes between frames (CarView has no velocity).
+- Unlock: `sessionController.unlockAudio()` runs synchronously in the Play tap handler (iOS Safari requirement). Voices are created on first update and released when a car is gone.
+- Mute: `CarAudio.setMuted(on)` exists. No Settings UI yet.
+- Not implemented yet: crash, pickup chime, delivery cash and countdown sounds.
 
 ---
 
@@ -276,6 +282,21 @@ Quality toggles in Settings: `Effects: full | reduced`, `Tire marks: on | off`. 
 | `groundLaneDashLength` | 120 | Length of each painted lane dash in world units (section 8.1) |
 | `groundLaneDashGap` | 80 | Gap between lane dashes in world units (section 8.1) |
 | `groundCurbWidth` | 16 | Width of the dark curb strip along the inner wall edges (section 8.1) |
+| `audioEnabled` | true | Master switch for car audio (section 8.4) |
+| `audioMasterVolume` | 0.6 | Master gain for all car audio (section 8.4) |
+| `audioOwnCarGain` | 1 | Gain multiplier for the local player's car (section 8.4) |
+| `audioOtherCarGain` | 0.35 | Gain multiplier for other cars, before distance fade (section 8.4) |
+| `audioHearingRadiusPx` | 1400 | Distance from the local car at which other cars become silent (section 8.4) |
+| `audioEngineIdleHz` | 38 | Engine oscillator frequency at rest (section 8.4) |
+| `audioEngineMaxHz` | 120 | Engine oscillator frequency at top speed (section 8.4) |
+| `audioEngineIdleGain` | 0.18 | Engine gain at rest (section 8.4) |
+| `audioEngineMaxGain` | 0.6 | Engine gain at top speed and full throttle (section 8.4) |
+| `audioAccelThreshold` | 0.6 | Throttle above which the acceleration layer starts (section 8.4) |
+| `audioAccelMaxGain` | 0.35 | Acceleration layer gain at full throttle (section 8.4) |
+| `audioSqueakTurnRate` | 1.6 | Yaw rate in rad/s above which tyre squeal starts (section 8.4) |
+| `audioSqueakMaxGain` | 0.45 | Tyre squeal gain at full level (section 8.4) |
+| `audioSqueakMinSpeedFraction` | 0.35 | Speed fraction below which no tyre squeal is heard (section 8.4) |
+| `audioSqueakFullTurnRate` | 3 | Yaw rate in rad/s at which tyre squeal reaches full gain (section 8.4) |
 
 ---
 

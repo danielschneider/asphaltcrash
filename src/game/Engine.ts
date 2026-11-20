@@ -1,10 +1,20 @@
 import { gameConfig } from "../config/gameConfig";
 import type { HudSink, HudSnapshot } from "../store/hudStore";
-import type { MatchSnapshot, SimEvent } from "../types/game";
+import type {
+  CarView,
+  MatchSnapshot,
+  SimEvent,
+  WorldView,
+} from "../types/game";
 import type { MatchSimulation } from "./sim/MatchSimulation";
 import type { WorldRenderer } from "./Renderer";
 import type { InputSource } from "./input/InputSource";
 import { buildWorldView } from "./WorldView";
+
+export interface CarAudioSink {
+  update(cars: readonly CarView[], localPid: number, dtSeconds: number): void;
+  dispose(): void;
+}
 
 export interface EngineDeps {
   readonly sim: MatchSimulation;
@@ -12,6 +22,7 @@ export interface EngineDeps {
   readonly inputSources: readonly InputSource[];
   readonly localPlayerId: number;
   readonly hud: HudSink;
+  readonly audio?: CarAudioSink;
   readonly requestFrame?: (cb: (t: number) => void) => number;
   readonly cancelFrame?: (id: number) => void;
 }
@@ -24,6 +35,7 @@ const STEP_EPSILON_SECONDS = 1e-6;
 const HUD_EVERY_STEPS = Math.round(gameConfig.fixedStepHz / gameConfig.hudHz);
 const MAX_STEPS_PER_FRAME = 20;
 const FEED_LENGTH = 3;
+const MAX_RENDER_DELTA_SECONDS = 0.1;
 
 function defaultRequestFrame(cb: FrameCallback): number {
   return globalThis.requestAnimationFrame(cb);
@@ -38,6 +50,12 @@ function subscribeVisibility(listener: (hidden: boolean) => void): () => void {
   const handler = (): void => listener(document.visibilityState === "hidden");
   document.addEventListener("visibilitychange", handler);
   return () => document.removeEventListener("visibilitychange", handler);
+}
+
+// Mirrors Renderer's frame clamp so audio and visuals see the same delta.
+function clampAudioDelta(dtSeconds: number): number {
+  if (!Number.isFinite(dtSeconds) || dtSeconds < 0) return 0;
+  return Math.min(dtSeconds, MAX_RENDER_DELTA_SECONDS);
 }
 
 function playerLabel(pid: number): string {
@@ -125,6 +143,7 @@ export class Engine {
   dispose(): void {
     this.stop();
     this.detachVisibility();
+    this.deps.audio?.dispose();
     this.feed.length = 0;
     this.accumulator = 0;
     this.lastMs = null;
@@ -204,12 +223,11 @@ export class Engine {
   }
 
   private render(hudDue: boolean, dtSeconds: number): void {
-    const { sim, renderer, localPlayerId } = this.deps;
+    const { sim, renderer, localPlayerId, audio } = this.deps;
     const snapshot = sim.snapshot();
-    renderer.update(
-      buildWorldView(snapshot, sim.arena, localPlayerId),
-      dtSeconds,
-    );
+    const view: WorldView = buildWorldView(snapshot, sim.arena, localPlayerId);
+    renderer.update(view, dtSeconds);
+    audio?.update(view.cars, localPlayerId, clampAudioDelta(dtSeconds));
     if (hudDue) this.pushHud(snapshot);
   }
 

@@ -1,3 +1,4 @@
+import { CarAudio } from "../game/audio/CarAudio";
 import { Engine } from "../game/Engine";
 import { InputBuffer } from "../game/input/InputBuffer";
 import { createInputBufferSource } from "../game/input/LocalInputSource";
@@ -33,6 +34,7 @@ export interface SessionDeps {
     arena: ArenaView,
   ) => Promise<WorldRenderer>;
   readonly hud: HudStore;
+  readonly createAudio?: () => CarAudio;
   readonly requestFrame?: (cb: (t: number) => void) => number;
   readonly cancelFrame?: (id: number) => void;
 }
@@ -41,6 +43,7 @@ const LOCAL_PLAYER_ID = 0;
 const DEFAULT_DEPS: SessionDeps = {
   createRenderer: createWorldRenderer,
   hud: hudStore,
+  createAudio: () => new CarAudio(),
 };
 
 function buildSoloSetup(options: SoloMatchOptions): MatchSetup {
@@ -64,11 +67,18 @@ export class SessionController {
   private readonly deps: SessionDeps;
   private engine: Engine | null = null;
   private renderer: WorldRenderer | null = null;
+  private readonly audio: CarAudio;
   private unsubscribeHud: (() => void) | null = null;
   private startToken = 0;
 
   constructor(deps: SessionDeps = DEFAULT_DEPS) {
     this.deps = deps;
+    this.audio = deps.createAudio ? deps.createAudio() : new CarAudio();
+  }
+
+  // Must run synchronously inside a user gesture (Play tap) so iOS Safari allows playback.
+  unlockAudio(): void {
+    this.audio.unlock();
   }
 
   getState(): SessionState {
@@ -113,6 +123,7 @@ export class SessionController {
       inputSources,
       localPlayerId: LOCAL_PLAYER_ID,
       hud: this.deps.hud,
+      audio: this.audio,
       ...(this.deps.requestFrame
         ? { requestFrame: this.deps.requestFrame }
         : {}),
@@ -125,6 +136,7 @@ export class SessionController {
 
   endMatch(): void {
     this.engine?.stop();
+    this.audio.dispose();
     this.detachHud();
     if (this.state === SESSION_STATE.playingSolo) {
       this.setState(SESSION_STATE.ended);
@@ -140,6 +152,7 @@ export class SessionController {
     this.detachHud();
     this.engine?.dispose();
     this.engine = null;
+    this.audio.dispose();
     this.renderer?.destroy();
     this.renderer = null;
     this.setState(SESSION_STATE.idle);

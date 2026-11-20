@@ -100,6 +100,21 @@ export interface GameConfigShape {
   readonly groundLaneDashLength: number;
   readonly groundLaneDashGap: number;
   readonly groundCurbWidth: number;
+  readonly audioEnabled: boolean;
+  readonly audioMasterVolume: number;
+  readonly audioOwnCarGain: number;
+  readonly audioOtherCarGain: number;
+  readonly audioHearingRadiusPx: number;
+  readonly audioEngineIdleHz: number;
+  readonly audioEngineMaxHz: number;
+  readonly audioEngineIdleGain: number;
+  readonly audioEngineMaxGain: number;
+  readonly audioAccelThreshold: number;
+  readonly audioAccelMaxGain: number;
+  readonly audioSqueakTurnRate: number;
+  readonly audioSqueakMaxGain: number;
+  readonly audioSqueakMinSpeedFraction: number;
+  readonly audioSqueakFullTurnRate: number;
 }
 
 const ARENA_WIDTH = 3200;
@@ -242,4 +257,20 @@ export const gameConfig = {
   groundLaneDashLength: 120,
   groundLaneDashGap: 80,
   groundCurbWidth: 16,
+  audioEnabled: true,
+  audioMasterVolume: 0.6,
+  audioOwnCarGain: 1,
+  audioOtherCarGain: 0.35,
+  audioHearingRadiusPx: 1400,
+  audioEngineIdleHz: 38,
+  audioEngineMaxHz: 120,
+  audioEngineIdleGain: 0.18,
+  audioEngineMaxGain: 0.6,
+  audioAccelThreshold: 0.6,
+  audioAccelMaxGain: 0.35,
+  // Tyre squeal starts above this yaw rate (rad/s) and reaches full level at audioSqueakFullTurnRate.
+  audioSqueakTurnRate: 1.6,
+  audioSqueakMaxGain: 0.45,
+  audioSqueakMinSpeedFraction: 0.35,
+  audioSqueakFullTurnRate: 3,
 } as const satisfies GameConfigShape;
