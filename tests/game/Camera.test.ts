@@ -10,7 +10,7 @@ import {
 
 const ARENA = { width: 2400, height: 1600 };
 const VIEWPORT = { width: 1000, height: 700 };
-const STATE: CameraState = { x: 1200, y: 800, zoom: 1 };
+const STATE: CameraState = { x: 1200, y: 800, zoom: 1, rotation: 0 };
 const SETTLE_STEPS = 600;
 
 function settle(target: CameraTarget, start: CameraState): CameraState {
@@ -27,6 +27,7 @@ describe("createCamera", () => {
       x: 1200,
       y: 800,
       zoom: gameConfig.cameraZoomRest,
+      rotation: 0,
     });
   });
 });
@@ -76,6 +77,25 @@ describe("stepCamera", () => {
     expect(state.zoom).toBeCloseTo(gameConfig.cameraZoomRest, 3);
   });
 
+  it("rotates the world so the car points toward the top of the screen", () => {
+    const state = settle(
+      { x: 1200, y: 800, speedFraction: 0, heading: 0 },
+      STATE,
+    );
+    expect(state.rotation).toBeCloseTo(-Math.PI / 2, 3);
+  });
+
+  it("uses the shortest rotation across the angle wrap", () => {
+    const state = stepCamera(
+      { x: 1200, y: 800, zoom: 1, rotation: Math.PI - 0.01 },
+      { x: 1200, y: 800, speedFraction: 0, heading: -Math.PI + 0.01 },
+      1,
+      VIEWPORT,
+      ARENA,
+    );
+    expect(state.rotation).toBeGreaterThan(1.5);
+  });
+
   it("settles zoom at cameraZoomMoving at full speed", () => {
     const state = settle({ x: 1200, y: 800, speedFraction: 1 }, STATE);
     expect(state.zoom).toBeCloseTo(gameConfig.cameraZoomMoving, 3);
@@ -110,14 +130,14 @@ describe("stepCamera", () => {
     const widenTarget = gameConfig.cameraZoomMoving;
     const closeTarget = gameConfig.cameraZoomRest;
     const widen = stepCamera(
-      { x: 1200, y: 800, zoom: start },
+      { x: 1200, y: 800, zoom: start, rotation: 0 },
       { x: 1200, y: 800, speedFraction: 1 },
       1 / 60,
       VIEWPORT,
       ARENA,
     );
     const close = stepCamera(
-      { x: 1200, y: 800, zoom: start },
+      { x: 1200, y: 800, zoom: start, rotation: 0 },
       { x: 1200, y: 800, speedFraction: 0 },
       1 / 60,
       VIEWPORT,
@@ -155,7 +175,7 @@ describe("stepCamera", () => {
   it("centres the arena when the viewport is larger than the arena", () => {
     const huge = { width: 5000, height: 4000 };
     const next = stepCamera(
-      { x: 100, y: 100, zoom: 1 },
+      { x: 100, y: 100, zoom: 1, rotation: 0 },
       { x: 100, y: 100, speedFraction: 0 },
       1,
       huge,

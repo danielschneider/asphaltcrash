@@ -513,8 +513,17 @@ function updateCamera(
 ): void {
   const local = view.cars.find((car) => car.isLocal);
   const target = local
-    ? { x: local.x, y: local.y, speedFraction: speedFraction(state, local, dt) }
-    : { x: arena.width / 2, y: arena.height / 2, speedFraction: 0 };
+    ? {
+        x: local.x,
+        y: local.y,
+        speedFraction: speedFraction(state, local, dt),
+        heading: local.angle,
+      }
+    : {
+        x: arena.width / 2,
+        y: arena.height / 2,
+        speedFraction: 0,
+      };
   if (local) state.prevLocal = { x: local.x, y: local.y };
   state.camera = stepCamera(
     state.camera,
@@ -525,10 +534,9 @@ function updateCamera(
   );
   const zoom = state.camera.zoom;
   world.scale.set(zoom);
-  world.position.set(
-    app.screen.width / 2 - state.camera.x * zoom,
-    app.screen.height / 2 - state.camera.y * zoom,
-  );
+  world.pivot.set(state.camera.x, state.camera.y);
+  world.position.set(app.screen.width / 2, app.screen.height / 2);
+  world.rotation = state.camera.rotation;
 }
 
 function speedFraction(state: RenderState, car: CarView, dt: number): number {

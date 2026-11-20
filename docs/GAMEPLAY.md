@@ -130,6 +130,7 @@ Arena size and spawn layout are authored constants, not procedural. Procedural m
 
 ### 7.1 Camera
 - Follows the local player's car with smoothing (`cameraFollowLerp` 6 per second).
+- Third-person top-down view: the arena and camera rotate so the local car remains centered and points toward the top of the screen. The car's world heading and controls are unchanged; only the rendered world transform rotates.
 - Zoom: closer at rest, further out at speed (GTA-like). Target = `cameraZoomRest` 1.5 × (`cameraZoomMoving` 0.55 / 1.5)^speedFraction, a geometric blend so each speed step changes the visible area by the same proportion. speedFraction = car speed / (`maxForwardSpeed` + `boostSpeedBonus`), clamped to 0..1. Zoom is a scale factor: larger = closer. Smoothed with `cameraFollowLerp` (6/s) when closing in (braking) and with `cameraZoomOutLerp` (10/s) when widening the view (speeding up), so the view opens quickly at speed and settles slowly when braking.
 - Visible area at full speed is about 2.7× the rest area (1.5 / 0.55).
 - Clamped to arena bounds using the visible area in world units (viewport / zoom). If the viewport is larger than the arena, the arena is centered.

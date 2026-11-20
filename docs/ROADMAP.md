@@ -47,7 +47,7 @@ Device targets: iPad (current iPadOS, Safari) primary; desktop Chrome for develo
 |---|------|-----------|
 | P1.1 | `Physics.ts` adapter around Matter.js 0.20.0: world with gravity disabled (`gravity.scale = 0`), car body, walls, sensors. **Status: done (desktop)** | Car drives with joystick input. |
 | P1.2 | Car handling model (GAMEPLAY 4). **Status: done (desktop)** | Steering, braking, reverse, lateral grip behave per 4.2 on iPad. |
-| P1.3 | `Renderer.ts` with PixiJS v8: arena, car sprites, camera follow, zoom. **Status: done (desktop)** | 60 FPS on iPad with 4 cars (measured, record in this file). |
+| P1.3 | `Renderer.ts` with PixiJS v8: arena, car sprites, camera follow, zoom, and third-person heading rotation. **Status: done (desktop)** | 60 FPS on iPad with 4 cars (measured, record in this file). |
 | P1.4 | `JoystickPad` and `InputBuffer`. **Status: done (desktop)** | Multi-touch works: steer and action simultaneously. |
 | P1.5 | `MatchSimulation` skeleton and fixed-step `Engine`. **Status: done (desktop)** | Deterministic step order; unit tests for step order pass. |
 | P1.6 | Bills: spawn, pickup, delivery, cargo, score (GAMEPLAY 3). **Status: done (desktop)** | Unit tests G-03 pass; manual check on iPad. |
