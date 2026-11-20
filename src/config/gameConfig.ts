@@ -7,7 +7,6 @@ export interface SpawnPoint {
 export interface BotProfileParams {
   readonly reactionDelayTicks: number;
   readonly aimNoiseRad: number;
-  readonly steerGain: number;
   readonly aggression: number;
 }
 
@@ -86,9 +85,12 @@ export interface GameConfigShape {
   readonly steerRateRadPerSec: number;
   readonly steerSpeedPenalty: number;
   readonly steerFullEngagementSpeedFraction: number;
+  readonly aimTurnFullAngleRad: number;
+  readonly aimDriveAngleRad: number;
+  readonly aimBrakeSpeedPxs: number;
+  readonly aimPivotRateRadPerSec: number;
   readonly joystickRadiusPx: number;
   readonly joystickDeadZone: number;
-  readonly joystickSteerDeadZone: number;
   readonly botDefaultCount: number;
   readonly botSeedStride: number;
   readonly botAttackRadiusPx: number;
@@ -223,9 +225,13 @@ export const gameConfig = {
   steerRateRadPerSec: 3.4,
   steerSpeedPenalty: 0.4,
   steerFullEngagementSpeedFraction: 0.25,
+  // Aim-based driving: the car turns toward the stick direction and drives once within aimDriveAngleRad.
+  aimTurnFullAngleRad: 0.6,
+  aimDriveAngleRad: 0.5,
+  aimBrakeSpeedPxs: 20,
+  aimPivotRateRadPerSec: 2.6,
   joystickRadiusPx: 72,
   joystickDeadZone: 0.12,
-  joystickSteerDeadZone: 0.15,
   botDefaultCount: 3,
   botSeedStride: 7919,
   botAttackRadiusPx: 350,
@@ -234,19 +240,16 @@ export const gameConfig = {
     easy: {
       reactionDelayTicks: 18,
       aimNoiseRad: 0.35,
-      steerGain: 0.6,
       aggression: 0.2,
     },
     normal: {
       reactionDelayTicks: 10,
       aimNoiseRad: 0.18,
-      steerGain: 0.9,
       aggression: 0.5,
     },
     hard: {
       reactionDelayTicks: 4,
       aimNoiseRad: 0.06,
-      steerGain: 1,
       aggression: 0.8,
     },
   },

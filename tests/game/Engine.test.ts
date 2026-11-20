@@ -114,7 +114,7 @@ function setup(): {
   const inputSources: readonly InputSource[] = [
     {
       playerId: 0,
-      latest: () => ({ throttle: 1, steer: 0, action: false, seq: 1 }),
+      latest: () => ({ aimX: 1, aimY: 0, action: false, seq: 1 }),
     },
   ];
   const engine = new Engine({
@@ -139,7 +139,7 @@ describe("Engine", () => {
     expect(sim.step).toHaveBeenCalledTimes(1);
     expect(sim.setInput).toHaveBeenCalledWith(
       0,
-      expect.objectContaining({ throttle: 1 }),
+      expect.objectContaining({ aimX: 1 }),
     );
     engine.dispose();
   });

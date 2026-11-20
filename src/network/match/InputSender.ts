@@ -23,9 +23,9 @@ export class InputSender {
     this.send = send;
   }
 
-  setLatest(throttle: number, steer: number, action: boolean): void {
+  setLatest(aimX: number, aimY: number, action: boolean): void {
     this.seq += 1;
-    this.latest = clampInputFrame({ throttle, steer, action, seq: this.seq });
+    this.latest = clampInputFrame({ aimX, aimY, action, seq: this.seq });
     this.hasSample = true;
   }
 

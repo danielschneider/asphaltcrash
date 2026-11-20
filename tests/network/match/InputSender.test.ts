@@ -45,7 +45,9 @@ describe("InputSender", () => {
     sender.tick(0);
     sender.setLatest(0, 0, false);
     sender.tick(40);
-    expect(rec.sent[0]).toMatchObject({ seq: 1, throttle: 1, steer: -1 });
+    expect(rec.sent[0]?.seq).toBe(1);
+    expect(rec.sent[0]?.aimX).toBeCloseTo(Math.SQRT1_2);
+    expect(rec.sent[0]?.aimY).toBeCloseTo(-Math.SQRT1_2);
     expect(rec.sent[1]?.seq).toBe(2);
   });
 

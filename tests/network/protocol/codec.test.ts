@@ -123,7 +123,7 @@ describe("codec snapshot rejection", () => {
     ["bad json", "{not json", "json"],
     [
       "wrong t",
-      JSON.stringify({ v: 1, t: "in", s: 1, th: 0, st: 0, a: 0 }),
+      JSON.stringify({ v: 1, t: "in", s: 1, ax: 0, ay: 0, a: 0 }),
       "wrong-type",
     ],
     [
@@ -175,16 +175,16 @@ describe("codec fromSnapMessage", () => {
 describe("codec input", () => {
   it("round-trips in-range input", () => {
     const decoded = decodeInput(
-      encodeInput({ throttle: 1, steer: -0.5, action: true, seq: 42 }),
+      encodeInput({ aimX: 1, aimY: -0.5, action: true, seq: 42 }),
     );
     expect(decoded).toEqual({
       ok: true,
-      value: { throttle: 1, steer: -0.5, action: true, seq: 42 },
+      value: { aimX: 1, aimY: -0.5, action: true, seq: 42 },
     });
   });
 
-  it("rejects out-of-range throttle without throwing", () => {
-    const text = JSON.stringify({ v: 1, t: "in", s: 1, th: 101, st: 0, a: 0 });
+  it("rejects out-of-range aim without throwing", () => {
+    const text = JSON.stringify({ v: 1, t: "in", s: 1, ax: 101, ay: 0, a: 0 });
     expect(decodeInput(text)).toEqual({ ok: false, reason: "range" });
   });
 
@@ -201,16 +201,16 @@ describe("codec input", () => {
 describe("validate", () => {
   it("checks input ranges", () => {
     expect(
-      validateInputPayload({ v: 1, t: "in", s: 0, th: -100, st: 100, a: 1 }).ok,
+      validateInputPayload({ v: 1, t: "in", s: 0, ax: -100, ay: 100, a: 1 }).ok,
     ).toBe(true);
     expect(
-      validateInputPayload({ v: 1, t: "in", s: 0, th: 0, st: -101, a: 0 }),
+      validateInputPayload({ v: 1, t: "in", s: 0, ax: 0, ay: -101, a: 0 }),
     ).toEqual({ ok: false, reason: "range" });
     expect(
-      validateInputPayload({ v: 1, t: "in", s: 0, th: 0, st: 0, a: 2 }).ok,
+      validateInputPayload({ v: 1, t: "in", s: 0, ax: 0, ay: 0, a: 2 }).ok,
     ).toBe(false);
     expect(
-      validateInputPayload({ v: 1, t: "in", s: -1, th: 0, st: 0, a: 0 }).ok,
+      validateInputPayload({ v: 1, t: "in", s: -1, ax: 0, ay: 0, a: 0 }).ok,
     ).toBe(false);
   });
 

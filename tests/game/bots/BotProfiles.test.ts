@@ -19,7 +19,6 @@ describe("profileFor", () => {
         expect(value).toBeGreaterThanOrEqual(0);
       }
       expect(profile.reactionDelayTicks).toBeGreaterThan(0);
-      expect(profile.steerGain).toBeGreaterThan(0);
     },
   );
 

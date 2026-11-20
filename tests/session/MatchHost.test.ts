@@ -79,8 +79,8 @@ const PEER_TO_PID: Readonly<Record<PeerId, number>> = {
   [SECOND_CLIENT_PEER]: 2,
 };
 const HOST_INPUT: InputFrame = {
-  throttle: 0,
-  steer: 0,
+  aimX: 0,
+  aimY: 0,
   action: false,
   seq: 0,
 };
@@ -137,8 +137,8 @@ function readyFor(mid: number): NetworkMessage {
   return { v: 1, t: "ready", mid };
 }
 
-function inputFor(seq: number, throttle: number): NetworkMessage {
-  return { v: 1, t: "in", s: seq, th: throttle, st: 0, a: 0 };
+function inputFor(seq: number, aimX: number): NetworkMessage {
+  return { v: 1, t: "in", s: seq, ax: aimX, ay: 0, a: 0 };
 }
 
 describe("MatchHost", () => {
@@ -216,7 +216,7 @@ describe("MatchHost", () => {
     host.tick(clock.now);
     expect(setInput).toHaveBeenCalledWith(
       1,
-      expect.objectContaining({ throttle: 1, seq: 1 }),
+      expect.objectContaining({ aimX: 1, seq: 1 }),
     );
   });
 

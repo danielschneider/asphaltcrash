@@ -76,7 +76,7 @@ Field names are short to reduce bytes. Documented mapping is normative.
 
 | `t` | Direction | Rate | Fields |
 |-----|-----------|------|--------|
-| `in` | C→H | 30 Hz, plus on button edge | `s` (seq), `th` (throttle, int −100..100), `st` (steer, int −100..100), `a` (action bool, 0/1) |
+| `in` | C→H | 30 Hz, plus on button edge | `s` (seq), `ax` (aim X, int −100..100), `ay` (aim Y, int −100..100), `a` (action bool, 0/1) |
 | `snap` | H→C | 20 Hz (every 3rd tick at 60 Hz) | `k` (tick), `ak` (ackSeq of the receiving player's last applied input, 0 for bots/none), `cars`, `bills`, `tm` (match time remaining, ms) |
 
 #### 4.2.1 `snap.cars` item
@@ -126,10 +126,9 @@ Events are reliable and ordered. Clients must apply events in order. Duplicate e
 ---
 
 ## 5. Input semantics
-- `th` = throttle: +100 forward, −100 reverse/brake.
-- `st` = steer: −100 left, +100 right (screen coordinates, see GAMEPLAY).
+- `ax`, `ay` = aim vector in screen space (+x right, +y down), each int −100..100 (scaled to −1..1 on the host). The vector is the joystick direction, not relative to the car. The host turns the car toward the aim and drives once aligned (`src/game/sim/aimDrive.ts`).
 - `a` = action button (boost/handbrake).
-- Host stores latest input per player and marks `seq`. It applies the input on each tick until a newer one arrives (zero-order hold). If no input arrives for 500 ms, the car's input is set to neutral (throttle 0, steer 0, no action). This protects against dropped unreliable packets.
+- Host stores latest input per player and marks `seq`. It applies the input on each tick until a newer one arrives (zero-order hold). If no input arrives for 500 ms, the car's input is set to neutral (aim 0,0, no action). This protects against dropped unreliable packets.
 - Clients send the latest `seq` even when the joystick is at rest. Idle heartbeats at 10 Hz keep `ackSeq` moving.
 
 ---
@@ -148,7 +147,7 @@ Events are reliable and ordered. Clients must apply events in order. Duplicate e
 |---------|------|
 | all | `v` must equal 1 for `hello`/`resume`; other messages from connected peers must be JSON object with `t` string. |
 | `hello` | `name` string, trimmed, 1–16 chars, printable. `token` 16 chars `[A-Za-z0-9]`. |
-| `in` | `s` int ≥ 0 and greater than last accepted seq (older ones dropped). `th`, `st` int in −100..100 (clamped, out-of-range message dropped). `a` 0 or 1. |
+| `in` | `s` int ≥ 0 and greater than last accepted seq (older ones dropped). `ax`, `ay` int in −100..100 (out-of-range message dropped). `a` 0 or 1. |
 | `ready` | `mid` equals current match id. |
 | `resume` | `token` must match stored token for slot; window not expired. |
 | `ping` | `c` finite number. |
@@ -182,7 +181,7 @@ Host paused (tab hidden on host): host sends `pause{on:true,why:'host'}` only if
 |------|------|
 | Encode/decode round trip for each message type | Vitest unit |
 | Quantization error bounds (position 0.1 px, angle 0.001 rad) | Vitest unit |
-| Validation rejects out-of-range `th`, `st`, bad `token` | Vitest unit |
+| Validation rejects out-of-range `ax`, `ay`, bad `token` | Vitest unit |
 | Seq ordering: older `in` dropped, duplicates ignored | Vitest unit |
 | Zero-order hold after 500 ms silence → neutral input | Vitest unit with fake timers |
 | Snapshot buffer interpolation at boundaries and missing samples | Vitest unit |

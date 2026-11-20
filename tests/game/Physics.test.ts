@@ -7,8 +7,8 @@ const ARENA = {
   height: gameConfig.arenaHeight,
   wallThickness: gameConfig.wallThickness,
 };
-const IDLE = { throttle: 0, steer: 0, boost: false } as const;
-const FULL = { throttle: 1, steer: 0, boost: false } as const;
+const IDLE = { aimX: 0, aimY: 0, boost: false } as const;
+const FULL = { aimX: 1, aimY: 0, boost: false } as const;
 
 function createWorld(): PhysicsWorld {
   return new PhysicsWorld(ARENA, []);
@@ -56,21 +56,46 @@ describe("PhysicsWorld", () => {
     world.dispose();
   });
 
-  it("does not spin while stationary and steers once moving", () => {
+  it("pivots in place toward the aim direction while stationary", () => {
     const world = createWorld();
     world.addCar(1, 600, 800, 0);
 
     for (let i = 0; i < 60; i += 1) {
-      world.applyControl(1, { throttle: 0, steer: 1, boost: false }, false);
+      world.applyControl(1, { aimX: 0, aimY: 1, boost: false }, false);
       world.step();
     }
-    expect(world.getCar(1)?.angle).toBeCloseTo(0, 6);
+    expect(world.getCar(1)?.angle ?? 0).toBeGreaterThan(Math.PI / 2 - 0.2);
+    world.dispose();
+  });
 
-    for (let i = 0; i < 60; i += 1) {
-      world.applyControl(1, { throttle: 1, steer: 1, boost: false }, false);
+  it("does not drive forward while the car still faces away from the aim", () => {
+    const world = createWorld();
+    world.addCar(1, 600, 800, 0);
+    const start = world.getCar(1);
+    for (let i = 0; i < 10; i += 1) {
+      world.applyControl(1, { aimX: -1, aimY: 0, boost: false }, false);
       world.step();
     }
-    expect(world.getCar(1)?.angle ?? 0).toBeGreaterThan(0.2);
+    const end = world.getCar(1);
+    expect(end?.x ?? NaN).toBeCloseTo(start?.x ?? NaN, 0);
+    world.dispose();
+  });
+
+  it("drives along the aim direction once turned toward it", () => {
+    const world = createWorld();
+    world.addCar(1, 600, 800, 0);
+    for (let i = 0; i < 120; i += 1) {
+      world.applyControl(1, { aimX: 0, aimY: 1, boost: false }, false);
+      world.step();
+    }
+    const start = world.getCar(1);
+    for (let i = 0; i < 60; i += 1) {
+      world.applyControl(1, { aimX: 0, aimY: 1, boost: false }, false);
+      world.step();
+    }
+    const end = world.getCar(1);
+    expect(end?.y ?? 0).toBeGreaterThan(start?.y ?? Infinity);
+    expect(end?.vy ?? 0).toBeGreaterThan(0);
     world.dispose();
   });
 
@@ -132,10 +157,11 @@ describe("PhysicsWorld", () => {
     let impactStep = -1;
     let minVxA = Infinity;
     let maxVxB = -Infinity;
+    const LEFT = { aimX: -1, aimY: 0, boost: false };
     for (let i = 0; i < 240; i += 1) {
       const control = impactStep < 0 ? FULL : IDLE;
       world.applyControl(1, control, false);
-      world.applyControl(2, control, false);
+      world.applyControl(2, impactStep < 0 ? LEFT : IDLE, false);
       const contacts = world.step();
       if (impactStep < 0 && contacts.some((c) => c.kind === "car-car")) {
         impactStep = i;
@@ -177,12 +203,13 @@ describe("PhysicsWorld", () => {
     const world = createWorld();
     const angle = 0.4;
     world.addCar(1, gameConfig.arenaWidth - 300, 800, angle);
+    const aim = { aimX: Math.cos(angle), aimY: Math.sin(angle), boost: false };
     const SLIDE_STEPS = 60;
     let impactStep = -1;
     let yAtImpact = 0;
     let yAfter = 0;
     for (let i = 0; i < 240; i += 1) {
-      world.applyControl(1, FULL, false);
+      world.applyControl(1, aim, false);
       const contacts = world.step();
       const state = world.getCar(1);
       if (!state) throw new Error("car missing");

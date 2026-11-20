@@ -7,33 +7,33 @@ import { InputBuffer } from "../../src/game/input/InputBuffer";
 import { resolveStick } from "../../src/hooks/useJoystick";
 
 describe("resolveStick", () => {
-  it("allows full steering and throttle together on a diagonal", () => {
+  it("aims along the stick direction on a diagonal", () => {
     const component = 72 / Math.sqrt(2);
-    const stick = resolveStick(component, -component, 72, 0.12, 0.15);
+    const stick = resolveStick(component, -component, 72, 0.12);
 
-    expect(stick.steer).toBeCloseTo(1);
-    expect(stick.throttle).toBeCloseTo(1);
+    expect(stick.aimX).toBeCloseTo(Math.SQRT1_2);
+    expect(stick.aimY).toBeCloseTo(-Math.SQRT1_2);
+    expect(Math.hypot(stick.aimX, stick.aimY)).toBeCloseTo(1);
   });
 
   it("keeps small movements inside the dead zone neutral", () => {
-    const stick = resolveStick(4, 4, 72, 0.12, 0.15);
+    const stick = resolveStick(4, 4, 72, 0.12);
 
-    expect(stick.steer).toBe(0);
-    expect(stick.throttle).toBe(0);
+    expect(stick.aimX).toBe(0);
+    expect(stick.aimY).toBe(0);
   });
 
-  it("ignores small sideways drift while preserving full forward throttle", () => {
-    const stick = resolveStick(8, -72, 72, 0.12, 0.15);
+  it("points straight up for a full upward deflection", () => {
+    const stick = resolveStick(0, -72, 72, 0.12);
 
-    expect(stick.steer).toBe(0);
-    expect(stick.throttle).toBeCloseTo(1);
+    expect(stick.aimX).toBeCloseTo(0);
+    expect(stick.aimY).toBeCloseTo(-1);
   });
 
-  it("smoothly ramps steering beyond the steering dead zone", () => {
-    const stick = resolveStick(18, -72, 72, 0.12, 0.15);
+  it("ramps magnitude from the dead zone edge to full deflection", () => {
+    const stick = resolveStick(0, -18, 72, 0.12);
 
-    expect(stick.steer).toBeCloseTo((0.25 - 0.15) / (1 - 0.15));
-    expect(stick.throttle).toBeCloseTo(1);
+    expect(Math.abs(stick.aimY)).toBeCloseTo((0.25 - 0.12) / (1 - 0.12));
   });
 });
 
@@ -64,12 +64,12 @@ describe("JoystickPad", () => {
     expect(base.style.opacity).toBe("1");
 
     fireEvent.pointerMove(zone, { pointerId: 1, clientX: 201, clientY: 129 });
-    expect(inputBuffer.latest().steer).toBeCloseTo(1);
-    expect(inputBuffer.latest().throttle).toBeCloseTo(1);
+    expect(inputBuffer.latest().aimX).toBeGreaterThan(0);
+    expect(inputBuffer.latest().aimY).toBeLessThan(0);
 
     fireEvent.pointerUp(zone, { pointerId: 1 });
-    expect(inputBuffer.latest().steer).toBe(0);
-    expect(inputBuffer.latest().throttle).toBe(0);
+    expect(inputBuffer.latest().aimX).toBe(0);
+    expect(inputBuffer.latest().aimY).toBe(0);
     expect(base.style.opacity).toBe("0");
   });
 });

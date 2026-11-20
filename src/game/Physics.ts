@@ -1,6 +1,7 @@
 import Matter from "matter-js";
 import { gameConfig } from "../config/gameConfig";
 import { MS_PER_SECOND } from "./sim/time";
+import { aimDrive, type AimDrive } from "./sim/aimDrive";
 
 export interface PhysicsContact {
   readonly kind: "car-car" | "car-wall" | "car-bill" | "car-base";
@@ -22,8 +23,8 @@ export interface CarBodyState {
 }
 
 export interface CarControl {
-  readonly throttle: number;
-  readonly steer: number;
+  readonly aimX: number;
+  readonly aimY: number;
   readonly boost: boolean;
 }
 
@@ -59,6 +60,7 @@ const STEP_MS = MS_PER_SECOND / FIXED_STEP_HZ;
 // Matter applies force as dv = F/m * deltaMs^2 with deltaMs in ms. Converting to px/s^2 gives F = m * a / MS_PER_SECOND^2.
 const FORCE_PER_ACCEL = 1 / (MS_PER_SECOND * MS_PER_SECOND);
 const NO_PID = -1;
+const NO_DRIVE: AimDrive = { steer: 0, throttle: 0 };
 const CATEGORY = { car: 0x0001, wall: 0x0002, sensor: 0x0004 } as const;
 const CAR_MASK = CATEGORY.car | CATEGORY.wall | CATEGORY.sensor;
 const ZERO: Vec2 = { x: 0, y: 0 };
@@ -156,9 +158,13 @@ export class PhysicsWorld {
     this.bills.delete(billId);
   }
 
-  applyControl(pid: number, control: CarControl, boostActive: boolean): void {
+  applyControl(
+    pid: number,
+    control: CarControl,
+    boostActive: boolean,
+  ): AimDrive {
     const body = this.cars.get(pid);
-    if (!body || body.isStatic) return;
+    if (!body || body.isStatic) return NO_DRIVE;
 
     const heading = headingOf(body.angle);
     const side = { x: -heading.y, y: heading.x };
@@ -185,15 +191,17 @@ export class PhysicsWorld {
       ),
     );
 
-    this.applySteer(body, clamp(control.steer, -1, 1), forwardPxs);
+    const drive = aimDrive(control.aimX, control.aimY, body.angle, forwardPxs);
+    this.applySteer(body, drive.steer, forwardPxs);
     this.applyThrottle(
       body,
       heading,
-      clamp(control.throttle, -1, 1),
+      drive.throttle,
       forwardPxs,
       forwardCap,
       normals,
     );
+    return drive;
   }
 
   step(): PhysicsContact[] {
@@ -304,14 +312,12 @@ export class PhysicsWorld {
     );
     const steerScale = 1 - gameConfig.steerSpeedPenalty * speedFraction;
     const direction = forwardPxs < 0 ? -1 : 1;
+    const rollingRate =
+      gameConfig.steerRateRadPerSec * steerEngagement * steerScale;
+    const pivotRate = gameConfig.aimPivotRateRadPerSec * (1 - steerEngagement);
     Matter.Body.setAngularVelocity(
       body,
-      (steer *
-        direction *
-        gameConfig.steerRateRadPerSec *
-        steerEngagement *
-        steerScale) /
-        FIXED_STEP_HZ,
+      (steer * direction * (rollingRate + pivotRate)) / FIXED_STEP_HZ,
     );
   }
 

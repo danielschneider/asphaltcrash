@@ -14,7 +14,6 @@ export type BotState = (typeof BOT_STATES)[number];
 export interface BotProfile {
   readonly reactionDelayTicks: number;
   readonly aimNoiseRad: number;
-  readonly steerGain: number;
   readonly aggression: number;
 }
 

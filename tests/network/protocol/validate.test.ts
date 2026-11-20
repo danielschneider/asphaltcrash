@@ -15,7 +15,7 @@ const VALID_TOKEN = "abcdefghij123456";
 function input(
   overrides: Record<string, unknown> = {},
 ): Record<string, unknown> {
-  return { v: 1, t: "in", s: 1, th: 0, st: 0, a: 0, ...overrides };
+  return { v: 1, t: "in", s: 1, ax: 0, ay: 0, a: 0, ...overrides };
 }
 
 function snap(
@@ -35,19 +35,19 @@ function snap(
 
 describe("validateInputPayload", () => {
   it("accepts the boundary values -100 and 100", () => {
-    expect(validateInputPayload(input({ th: -100, st: 100 })).ok).toBe(true);
+    expect(validateInputPayload(input({ ax: -100, ay: 100 })).ok).toBe(true);
   });
 
-  it("rejects throttle or steer outside -100..100", () => {
-    expect(validateInputPayload(input({ th: 101 }))).toEqual({
+  it("rejects aim components outside -100..100", () => {
+    expect(validateInputPayload(input({ ax: 101 }))).toEqual({
       ok: false,
       reason: "range",
     });
-    expect(validateInputPayload(input({ st: -101 })).ok).toBe(false);
+    expect(validateInputPayload(input({ ay: -101 })).ok).toBe(false);
   });
 
-  it("rejects non-integer throttle and wrong action values", () => {
-    expect(validateInputPayload(input({ th: 1.5 })).ok).toBe(false);
+  it("rejects non-integer aim and wrong action values", () => {
+    expect(validateInputPayload(input({ ax: 1.5 })).ok).toBe(false);
     expect(validateInputPayload(input({ a: 2 })).ok).toBe(false);
   });
 

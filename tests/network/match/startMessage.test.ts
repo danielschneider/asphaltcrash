@@ -55,10 +55,10 @@ describe("snapshot end-to-end", () => {
   it("round-trips a 60-step two-human simulation snapshot", () => {
     const sim = new MatchSimulation(SETUP);
     for (let i = 0; i < 60; i += 1) {
-      sim.setInput(0, { throttle: 1, steer: 0.3, action: false, seq: i + 1 });
+      sim.setInput(0, { aimX: 1, aimY: 0.3, action: false, seq: i + 1 });
       sim.setInput(1, {
-        throttle: 0.5,
-        steer: -0.5,
+        aimX: 0.5,
+        aimY: -0.5,
         action: i === 30,
         seq: i + 1,
       });

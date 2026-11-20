@@ -271,7 +271,7 @@ describe("MatchClient", () => {
     h.client.start();
     h.transport.deliver(startMessage());
     for (let i = 0; i <= 60; i += 1) {
-      h.input.write({ throttle: i % 2 === 0 ? 1 : 0.5 });
+      h.input.write({ aimX: i % 2 === 0 ? 1 : 0.5 });
       h.frame(i * FRAME_MS);
     }
     const inputs = h.transport.ofType("in", "unreliable");

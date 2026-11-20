@@ -17,14 +17,14 @@ const BASE_SETUP: MatchSetup = {
 };
 
 function scriptedInput(tick: number): {
-  throttle: number;
-  steer: number;
+  aimX: number;
+  aimY: number;
   action: boolean;
   seq: number;
 } {
   return {
-    throttle: 1,
-    steer: Math.sin(tick / 30),
+    aimX: Math.cos(tick / 30),
+    aimY: Math.sin(tick / 30),
     action: tick % 200 === 0,
     seq: tick,
   };

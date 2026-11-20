@@ -1,8 +1,8 @@
 import { NEUTRAL_INPUT, clampInputFrame, type InputFrame } from "./InputFrame";
 
 export interface InputWrite {
-  readonly throttle?: number;
-  readonly steer?: number;
+  readonly aimX?: number;
+  readonly aimY?: number;
   readonly action?: boolean;
 }
 
@@ -11,14 +11,14 @@ export class InputBuffer {
 
   write(partial: InputWrite): void {
     const next = clampInputFrame({
-      throttle: partial.throttle ?? this.frame.throttle,
-      steer: partial.steer ?? this.frame.steer,
+      aimX: partial.aimX ?? this.frame.aimX,
+      aimY: partial.aimY ?? this.frame.aimY,
       action: partial.action ?? this.frame.action,
       seq: this.frame.seq,
     });
     const isChanged =
-      next.throttle !== this.frame.throttle ||
-      next.steer !== this.frame.steer ||
+      next.aimX !== this.frame.aimX ||
+      next.aimY !== this.frame.aimY ||
       next.action !== this.frame.action;
     if (!isChanged) {
       return;

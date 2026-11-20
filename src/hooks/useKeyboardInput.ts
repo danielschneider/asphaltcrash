@@ -30,8 +30,8 @@ export function useKeyboardInput(inputBuffer: InputBuffer): void {
 
     const syncBuffer = (): void => {
       inputBuffer.write({
-        throttle: axis(held, "up", "down"),
-        steer: axis(held, "right", "left"),
+        aimX: axis(held, "right", "left"),
+        aimY: axis(held, "down", "up"),
         action: held.has("action"),
       });
     };

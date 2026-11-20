@@ -54,15 +54,16 @@ Bills are visible to all players. Pickup and delivery are determined by the host
 ### 4.1 Controls (virtual joystick, README R-02)
 | Input | Effect |
 |-------|--------|
-| Joystick up | throttle forward |
-| Joystick down | brake, then reverse when speed ≈ 0 |
-| Joystick left/right | steer left/right |
+| Joystick direction | car turns until its nose points along the stick direction, then drives |
+| Joystick released | car coasts to a stop, no steering |
+| Stick pointing away from heading | car brakes, then pivots in place toward the stick; no forward drive until within `aimDriveAngleRad` |
 | Action button (right thumb, Q-04) | boost (short forward impulse, 2 s cooldown) |
 
 - Joystick: floating control anchored at the initial touch within a broad lower-left zone, radius 72 px (CSS units), dead zone 12 %.
-- Joystick X and Y map independently to steering and throttle so full diagonal input can apply both at once.
-- Steering has a separate 15 % input dead zone to filter small sideways thumb movement; remaining steering input ramps smoothly to full.
-- Steering response ramps from zero at rest to full engagement at 25 % of max forward speed, then is reduced at high speed (`steerScale = 1 - 0.5 * speedFraction`).
+- The stick sends an absolute aim vector (`aimX`, `aimY`, unit circle), not steer and throttle. Pushing up always means "face up and drive up", regardless of the car's current heading.
+- Aim is turned into steer and throttle on the host (`src/game/sim/aimDrive.ts`). Steer is the heading error divided by `aimTurnFullAngleRad`. Throttle is applied only when the heading error is within `aimDriveAngleRad`, and the magnitude of the stick sets the throttle.
+- A car that is misaligned and moving forward brakes. A stationary car pivots in place at `aimPivotRateRadPerSec`.
+- Steering response ramps from pivot rate at rest to the rolling rate at full engagement (25 % of max forward speed), then is reduced at high speed (`steerScale = 1 - 0.5 * speedFraction`).
 
 ### 4.2 Physics feel (targets, verified only on device)
 | Parameter | Initial value |
@@ -276,9 +277,12 @@ Implemented with the browser Web Audio API only (no audio library). Pure math li
 | `steerFullEngagementSpeedFraction` | 0.25 | Speed fraction at which full steering response is reached (section 4.1) |
 | `joystickRadiusPx` | 72 | Virtual joystick radius in px (section 4.1) |
 | `joystickDeadZone` | 0.12 | Joystick dead zone fraction (section 4.1) |
-| `joystickSteerDeadZone` | 0.15 | Steering-only input dead zone fraction (section 4.1) |
+| `aimTurnFullAngleRad` | 0.6 | Heading error at which steering reaches full lock (section 4.1) |
+| `aimDriveAngleRad` | 0.5 | Heading error within which the car drives forward (section 4.1) |
+| `aimBrakeSpeedPxs` | 20 | Forward speed above which a misaligned car brakes (section 4.1) |
+| `aimPivotRateRadPerSec` | 2.6 | Turn rate for a stationary car pivoting toward the aim (section 4.1) |
 | `botDefaultCount` | 3 | Default bot count in solo mode |
-| `botProfiles` | easy / normal / hard | Bot profile parameters (`reactionDelayTicks`, `aimNoiseRad`, `steerGain`, `aggression`) |
+| `botProfiles` | easy / normal / hard | Bot profile parameters (`reactionDelayTicks`, `aimNoiseRad`, `aggression`) |
 | `playerColors` | 16 hex colours | Car colours assigned by slot order |
 | `carDamageShaderEnabled` | false | Enables the car damage tone filter (section 8.1). Off: damage shows as marks only, paint stays unchanged |
 | `carDamageMaxStrength` | 0.85 | Shader strength at full damage (0..1) |

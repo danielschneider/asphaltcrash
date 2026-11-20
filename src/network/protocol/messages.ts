@@ -49,8 +49,8 @@ export interface InputMessage {
   readonly v: typeof PROTOCOL_VERSION;
   readonly t: "in";
   readonly s: number;
-  readonly th: number;
-  readonly st: number;
+  readonly ax: number;
+  readonly ay: number;
   readonly a: 0 | 1;
 }
 

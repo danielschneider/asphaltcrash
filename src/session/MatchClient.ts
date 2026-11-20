@@ -154,7 +154,7 @@ export class MatchClient {
     const input = this.deps.inputBuffer.latest();
     if (input.seq !== this.lastInputSeq) {
       this.lastInputSeq = input.seq;
-      this.inputSender.setLatest(input.throttle, input.steer, input.action);
+      this.inputSender.setLatest(input.aimX, input.aimY, input.action);
     }
     this.inputSender.tick(nowMs);
   }

@@ -253,16 +253,16 @@ Engine settings (verified against matter-js 0.20.0 `Engine.create` defaults):
 - Resolution: `resolution = min(devicePixelRatio, 2)`, `autoDensity = true`.
 
 ### 6.5 Input
-- `InputBuffer` holds `{ throttle: -1..1, steer: -1..1, action: boolean }` written by pointer events, read by Engine.
+- `InputBuffer` holds `{ aimX: -1..1, aimY: -1..1, action: boolean }` (aim clamped to the unit circle) written by pointer events, read by Engine.
 - The joystick DOM component writes to the buffer through a ref/callback; it does not set React state on each move.
-- Dead zone 0.12, square-mapped joystick axes, steer uses x, throttle uses y. On touch down, the floating stick anchors at the thumb position within the lower-left control zone.
+- Dead zone 0.12. The joystick sends the absolute stick direction as an aim vector. The host converts it to steer and throttle relative to the car heading (`aimDrive.ts`). On touch down, the floating stick anchors at the thumb position within the lower-left control zone.
 - Host input for local player is written straight into `sim.setInput`; client input is sent as `InputFrame` at 30 Hz plus immediately on button edge.
 
 ### 6.6 Bots
 - `BotController` per bot car. Input: read-only snapshot of `MatchState` from the previous tick. Output: `InputFrame`.
 - FSM transitions from distance to nearest bill, distance to own home base when carrying cargo, presence of enemy car within attack radius, own health below threshold.
 - Bot runs only on the host. Clients never simulate bots.
-- Profile parameters in `BotProfiles.ts`: `reactionDelayTicks`, `aimNoiseRad`, `steerGain`, `aggression`.
+- Profile parameters in `BotProfiles.ts`: `reactionDelayTicks`, `aimNoiseRad`, `aggression`.
 
 ### 6.7 Networking (L1)
 
@@ -346,7 +346,7 @@ Client                                              Host
 ──────                                              ────
 Joystick → InputBuffer
   │ every 33 ms (30 Hz) or edge
-  └── input{seq,throttle,steer,action} ───────────► InputQueue[carId]
+   └── input{seq,aimX,aimY,action} ───────────► InputQueue[carId]
   │
   ShadowCar.apply(input) (immediate)                MatchSimulation.step (60 Hz)
   │                                                   │

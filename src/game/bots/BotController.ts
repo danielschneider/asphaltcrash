@@ -43,8 +43,8 @@ interface Point {
 }
 
 interface Decision {
-  readonly throttle: number;
-  readonly steer: number;
+  readonly aimX: number;
+  readonly aimY: number;
   readonly action: boolean;
   readonly state: BotState;
 }
@@ -54,13 +54,11 @@ const ATTACK_MIN_HP_FRACTION = 0.3;
 const EVADE_HP_FRACTION = 0.6;
 const RECOVER_BASE_DISTANCE_PX = 200;
 const FLEE_DISTANCE_PX = 300;
-const FULL_THROTTLE_ANGLE_RAD = Math.PI / 3;
-const CRUISE_THROTTLE = 0.4;
 const BOOST_ANGLE_RAD = 0.2;
 const BOOST_MIN_AGGRESSION = 0.5;
 const IDLE_DECISION: Decision = {
-  throttle: 0,
-  steer: 0,
+  aimX: 0,
+  aimY: 0,
   action: false,
   state: "SeekBill",
 };
@@ -140,8 +138,8 @@ export class BotController {
     }
     this.seq += 1;
     return clampInputFrame({
-      throttle: this.held.throttle,
-      steer: this.held.steer,
+      aimX: this.held.aimX,
+      aimY: this.held.aimY,
       action: this.held.action,
       seq: this.seq,
     });
@@ -150,22 +148,20 @@ export class BotController {
   private plan(view: BotPerception): Decision {
     const state = selectState(view);
     const target = targetFor(state, view);
-    const angleDiff = normalizeAngle(
-      Math.atan2(target.y - view.self.y, target.x - view.self.x) -
-        view.self.angle,
-    );
+    const bearing = Math.atan2(target.y - view.self.y, target.x - view.self.x);
     const noise = (this.rng.next() - 0.5) * 2 * this.profile.aimNoiseRad;
-    const steer = Math.min(
-      1,
-      Math.max(-1, angleDiff * this.profile.steerGain + noise),
-    );
-    const throttle =
-      Math.abs(angleDiff) < FULL_THROTTLE_ANGLE_RAD ? 1 : CRUISE_THROTTLE;
+    const aimAngle = bearing + noise;
+    const angleDiff = normalizeAngle(bearing - view.self.angle);
     const action =
       state === "Attack" &&
       this.profile.aggression > BOOST_MIN_AGGRESSION &&
       Math.abs(angleDiff) < BOOST_ANGLE_RAD;
-    return { throttle, steer, action, state };
+    return {
+      aimX: Math.cos(aimAngle),
+      aimY: Math.sin(aimAngle),
+      action,
+      state,
+    };
   }
 }
 

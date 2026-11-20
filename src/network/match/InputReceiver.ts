@@ -6,7 +6,7 @@ import {
 } from "../../game/input/InputFrame";
 import type { InputMessage } from "../protocol/messages";
 
-export type InputWire = Pick<InputMessage, "s" | "th" | "st" | "a">;
+export type InputWire = Pick<InputMessage, "s" | "ax" | "ay" | "a">;
 
 interface InputEntry {
   readonly frame: InputFrame;
@@ -24,8 +24,8 @@ export class InputReceiver {
       return false;
     }
     const frame = clampInputFrame({
-      throttle: msg.th / WIRE_TO_UNIT,
-      steer: msg.st / WIRE_TO_UNIT,
+      aimX: msg.ax / WIRE_TO_UNIT,
+      aimY: msg.ay / WIRE_TO_UNIT,
       action: msg.a === 1,
       seq: msg.s,
     });

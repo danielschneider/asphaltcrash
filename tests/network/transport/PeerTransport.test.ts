@@ -10,8 +10,8 @@ const inputMessage: InputMessage = {
   v: 1,
   t: "in",
   s: 1,
-  th: 100,
-  st: -50,
+  ax: 100,
+  ay: -50,
   a: 1,
 };
 

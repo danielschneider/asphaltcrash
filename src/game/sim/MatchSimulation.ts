@@ -291,13 +291,12 @@ export class MatchSimulation {
         car.boostCooldownTicks = BOOST_COOLDOWN_TICKS;
       }
       const boosting = !car.destroyed && car.boostTicksLeft > 0;
-      car.throttle = input.throttle;
-      car.boosting = boosting;
-      this.physics.applyControl(
+      car.throttle = this.physics.applyControl(
         pid,
-        { throttle: input.throttle, steer: input.steer, boost: boosting },
+        { aimX: input.aimX, aimY: input.aimY, boost: boosting },
         boosting,
-      );
+      ).throttle;
+      car.boosting = boosting;
       car.boostTicksLeft = Math.max(0, car.boostTicksLeft - 1);
       car.boostCooldownTicks = Math.max(0, car.boostCooldownTicks - 1);
     }

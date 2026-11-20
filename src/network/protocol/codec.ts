@@ -140,8 +140,8 @@ export function toInputMessage(frame: InputFrame): InputMessage {
     v: PROTOCOL_VERSION,
     t: "in",
     s: Math.max(0, Math.floor(frame.seq)),
-    th: quantizeUnit(frame.throttle),
-    st: quantizeUnit(frame.steer),
+    ax: quantizeUnit(frame.aimX),
+    ay: quantizeUnit(frame.aimY),
     a: frame.action ? 1 : 0,
   };
 }
@@ -163,8 +163,8 @@ export function decodeInput(text: string): DecodeResult<InputFrame> {
   return {
     ok: true,
     value: {
-      throttle: message.th / THROTTLE_WIRE_LIMIT,
-      steer: message.st / THROTTLE_WIRE_LIMIT,
+      aimX: message.ax / THROTTLE_WIRE_LIMIT,
+      aimY: message.ay / THROTTLE_WIRE_LIMIT,
       action: message.a === 1,
       seq: message.s,
     },

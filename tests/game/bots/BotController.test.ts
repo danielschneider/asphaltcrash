@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { gameConfig } from "../../../src/config/gameConfig";
 import {
   BotController,
   type BotPerception,
 } from "../../../src/game/bots/BotController";
 import { createRng } from "../../../src/game/sim/Rng";
+import { gameConfig } from "../../../src/config/gameConfig";
 
 function makeView(
   overrides: Partial<BotPerception["self"]> = {},
@@ -74,29 +74,30 @@ describe("BotController state selection", () => {
   });
 });
 
-describe("BotController steering", () => {
-  it("steers right (positive) toward a target below the heading", () => {
+describe("BotController aim", () => {
+  it("aims down-screen (positive y) toward a target below", () => {
     const bot = new BotController(3, "hard", createRng(2));
     const input = bot.decide(
       makeView({}, { bills: [{ id: 1, x: 1000, y: 1200 }] }),
     );
-    expect(input.steer).toBeGreaterThan(0);
+    expect(input.aimY).toBeGreaterThan(0);
+    expect(Math.abs(input.aimX)).toBeLessThan(0.2);
   });
 
-  it("steers left (negative) toward a target above the heading", () => {
+  it("aims up-screen (negative y) toward a target above", () => {
     const bot = new BotController(3, "hard", createRng(2));
     const input = bot.decide(
       makeView({}, { bills: [{ id: 1, x: 1000, y: 400 }] }),
     );
-    expect(input.steer).toBeLessThan(0);
+    expect(input.aimY).toBeLessThan(0);
   });
 
-  it("throttles fully when the target is roughly ahead", () => {
+  it("aims along +x for a target straight ahead", () => {
     const bot = new BotController(3, "hard", createRng(2));
     const input = bot.decide(
       makeView({}, { bills: [{ id: 1, x: 1500, y: 800 }] }),
     );
-    expect(input.throttle).toBe(1);
+    expect(input.aimX).toBeGreaterThan(0.9);
   });
 });
 
@@ -111,13 +112,13 @@ describe("BotController timing and determinism", () => {
       const held = bot.decide(
         makeView({}, { bills: [{ id: 1, x: 1000, y: 100 }] }),
       );
-      expect(held.steer).toBe(first.steer);
-      expect(held.throttle).toBe(first.throttle);
+      expect(held.aimX).toBe(first.aimX);
+      expect(held.aimY).toBe(first.aimY);
     }
     const replanned = bot.decide(
       makeView({}, { bills: [{ id: 1, x: 1000, y: 100 }] }),
     );
-    expect(replanned.steer).toBeLessThan(0);
+    expect(replanned.aimY).toBeLessThan(0);
   });
 
   it("increments seq on every decide call", () => {
@@ -137,20 +138,18 @@ describe("BotController timing and determinism", () => {
             { bills: [{ id: 1, x: 1000, y: 1200 }] },
           ),
         );
-        out.push(frame.steer, frame.throttle);
+        out.push(frame.aimX, frame.aimY);
       }
       return out;
     };
     expect(run()).toEqual(run());
   });
 
-  it("keeps outputs within the clamped input range", () => {
+  it("keeps aim within the unit circle", () => {
     const bot = new BotController(3, "hard", createRng(3));
     const frame = bot.decide(
       makeView({ angle: -3 }, { bills: [{ id: 1, x: 1000, y: 1200 }] }),
     );
-    expect(Math.abs(frame.steer)).toBeLessThanOrEqual(1);
-    expect(frame.throttle).toBeGreaterThanOrEqual(-1);
-    expect(frame.throttle).toBeLessThanOrEqual(1);
+    expect(Math.hypot(frame.aimX, frame.aimY)).toBeLessThanOrEqual(1 + 1e-9);
   });
 });

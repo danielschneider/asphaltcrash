@@ -14,7 +14,7 @@ vi.mock("../../src/session/SessionController", () => {
   const listeners = new Set<() => void>();
   const inputBuffer = {
     write() {},
-    latest: () => ({ throttle: 0, steer: 0, action: false, seq: 0 }),
+    latest: () => ({ aimX: 0, aimY: 0, action: false, seq: 0 }),
   };
   const sessionController = {
     getState: () => "idle",

@@ -3,7 +3,7 @@ import { createLocalPair } from "../../../src/network/transport/LocalTransport";
 import type { InputMessage } from "../../../src/network/protocol/messages";
 
 function inputMessage(s: number): InputMessage {
-  return { v: 1, t: "in", s, th: 50, st: -20, a: 0 };
+  return { v: 1, t: "in", s, ax: 50, ay: -20, a: 0 };
 }
 
 function runLossySession(
