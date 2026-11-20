@@ -53,11 +53,34 @@ describe("LobbyScreen", () => {
     expect(screen.getByText("Lobby").tagName).toBe("P");
   });
 
-  it("shows a disabled match start button", () => {
+  it("enables Start match for the host with at least two cars", () => {
+    lobbyStore.set({
+      role: "host",
+      roomCode: "ABC234",
+      status: "ready",
+      players: [{ pid: 0, name: "Host" }],
+      bots: 1,
+    });
     render(<LobbyScreen />);
-    expect(
-      screen.getByRole("button", { name: "Match start: P3" }),
-    ).toHaveProperty("disabled", true);
+    expect(screen.getByRole("button", { name: "Start match" })).toHaveProperty(
+      "disabled",
+      false,
+    );
+  });
+
+  it("disables Start match when only one car is in the lobby", () => {
+    lobbyStore.set({
+      role: "host",
+      roomCode: "ABC234",
+      status: "ready",
+      players: [{ pid: 0, name: "Host" }],
+      bots: 0,
+    });
+    render(<LobbyScreen />);
+    expect(screen.getByRole("button", { name: "Start match" })).toHaveProperty(
+      "disabled",
+      true,
+    );
   });
 
   it("shows lobby error in an alert element", () => {

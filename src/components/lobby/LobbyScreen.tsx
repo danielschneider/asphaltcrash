@@ -10,8 +10,8 @@ import {
 } from "../../session/lobbyRoster";
 import { lobbyStatusText, type LobbySnapshot } from "../../store/lobbyStore";
 
-const MATCH_START_LABEL = "Match start: P3";
 const EMPTY_ROOM_CODE = "------";
+const MIN_START_CARS = 2;
 
 function describeRole(snapshot: LobbySnapshot): string {
   if (snapshot.role === "host") return "Hosting";
@@ -33,6 +33,10 @@ export function LobbyScreen() {
     sessionController.backToIdle();
   };
 
+  const handleStartMatch = (): void => {
+    sessionController.startMatch();
+  };
+
   const handleBotCountChange = (event: ChangeEvent<HTMLInputElement>): void => {
     sessionController.setLobbyBotCount(Number(event.target.value));
   };
@@ -41,6 +45,7 @@ export function LobbyScreen() {
   const roster = rosterWithBots(snapshot.players, snapshot.bots);
   const isHost = snapshot.role === "host";
   const total = totalCarCount(snapshot.players.length, snapshot.bots);
+  const canStart = isHost && total >= MIN_START_CARS;
 
   return (
     <div className="start-screen">
@@ -84,9 +89,16 @@ export function LobbyScreen() {
             {waitingText}
           </p>
         ) : null}
-        <button type="button" className="button" disabled>
-          {MATCH_START_LABEL}
-        </button>
+        {isHost ? (
+          <button
+            type="button"
+            className="button button-primary"
+            disabled={!canStart}
+            onClick={handleStartMatch}
+          >
+            Start match
+          </button>
+        ) : null}
         <button type="button" className="button" onClick={handleBack}>
           Back
         </button>

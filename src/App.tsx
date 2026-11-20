@@ -2,6 +2,7 @@ import { useState } from "react";
 import { LobbyScreen } from "./components/lobby/LobbyScreen";
 import { StartScreen } from "./components/lobby/StartScreen";
 import { MatchScreen } from "./components/hud/MatchScreen";
+import { NetworkMatchScreen } from "./components/hud/NetworkMatchScreen";
 import { ResultScreen } from "./components/result/ResultScreen";
 import { useSession } from "./hooks/useSession";
 import {
@@ -40,6 +41,14 @@ export function App() {
     return (
       <div className="app-root">
         <LobbyScreen />
+      </div>
+    );
+  }
+
+  if (sessionState === SESSION_STATE.playingNetwork) {
+    return (
+      <div className="app-root">
+        <NetworkMatchScreen onExit={handleExit} />
       </div>
     );
   }

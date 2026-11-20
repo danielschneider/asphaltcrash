@@ -26,7 +26,12 @@ import {
   validateRoomCode,
   type RandomBytes,
 } from "../network/room/roomCode";
-import { clampBotCount } from "./lobbyRoster";
+import { clampBotCount, totalCarCount } from "./lobbyRoster";
+import { MatchHost } from "./MatchHost";
+import { MatchClient } from "./MatchClient";
+import { buildArenaView } from "../game/arena";
+import { parseStart } from "../network/match/startMessage";
+import type { NetworkMessage } from "../network/protocol/messages";
 import { generatePlayerName, generateUniquePlayerName } from "./playerNames";
 import { hudStore, type HudStore } from "../store/hudStore";
 import {
@@ -134,6 +139,11 @@ export class SessionController {
   private handshakeClient: HandshakeClient | null = null;
   private lobbyUnsubscribers: Unsubscribe[] = [];
   private connectTimer: unknown = null;
+  private lobbyRoster: RosterHandshakeHost | null = null;
+  private matchHost: MatchHost | null = null;
+  private matchClient: MatchClient | null = null;
+  private matchFrameId: number | null = null;
+  private matchRenderer: WorldRenderer | null = null;
 
   constructor(deps: SessionDeps = DEFAULT_DEPS) {
     this.deps = deps;
@@ -229,6 +239,7 @@ export class SessionController {
       (players) => lobbyStore.set({ players }),
       (taken) => generateUniquePlayerName(taken),
     );
+    this.lobbyRoster = roster;
     this.lobbyTransport = new PeerTransport({
       role: "host",
       peerId: hostPeerIdFor(code),
@@ -262,6 +273,90 @@ export class SessionController {
   setLobbyBotCount(count: number): void {
     if (this.state !== SESSION_STATE.hostingLobby) return;
     lobbyStore.set({ bots: clampBotCount(count) });
+  }
+
+  startMatch(): void {
+    if (
+      this.state !== SESSION_STATE.hostingLobby ||
+      this.lobbyTransport === null
+    ) {
+      return;
+    }
+    const snapshot = lobbyStore.getSnapshot();
+    const humans = snapshot.players.map((player) => player.pid);
+    const bots = Array.from(
+      { length: clampBotCount(snapshot.bots) },
+      (_, index) => humans.length + index,
+    );
+    if (totalCarCount(humans.length, bots.length) < 2) {
+      lobbyStore.set({ error: "Need at least 2 cars" });
+      return;
+    }
+    const transport = this.lobbyTransport;
+    const seed = crypto.getRandomValues(new Uint32Array(1))[0] ?? 0;
+    this.matchHost = new MatchHost({
+      transport,
+      now: () => performance.now(),
+      setTimeout: (handler, ms) => setTimeout(handler, ms),
+      clearTimeout: (handle) =>
+        clearTimeout(handle as Parameters<typeof clearTimeout>[0]),
+      newMatchId: () => Date.now() % 0x7fffffff,
+      makeSim: (setup) => new MatchSimulation(setup),
+      seed,
+      humanPids: humans,
+      botPids: bots,
+      botDifficulty: "normal",
+      matchSeconds: gameConfig.matchSeconds,
+      pidForPeer: (peerId) => this.lobbyRoster?.pidForPeer(peerId),
+      peerIdForPid: (pid) => this.lobbyRoster?.peerIdForPid(pid),
+      hostInput: () => this.inputBuffer.latest(),
+    });
+    this.lobbyUnsubscribers.push(
+      transport.onMessage((msg: NetworkMessage, from) => {
+        this.matchHost?.handleInbound(msg, from);
+      }),
+    );
+    this.setState(SESSION_STATE.playingNetwork);
+    this.matchHost.start();
+    this.startFrameLoop();
+  }
+
+  attachMatchRenderer(host: HTMLElement): Promise<void> {
+    return this.createMatchRenderer(host);
+  }
+
+  private async createMatchRenderer(host: HTMLElement): Promise<void> {
+    const renderer = await this.deps.createRenderer(
+      host,
+      buildArenaView(
+        lobbyStore.getSnapshot().players.map((p) => p.pid),
+        [],
+      ),
+    );
+    this.matchRenderer = renderer;
+  }
+
+  private startFrameLoop(): void {
+    const request =
+      this.deps.requestFrame ?? ((cb) => requestAnimationFrame(cb));
+    const loop = (now: number): void => {
+      if (this.state !== SESSION_STATE.playingNetwork) return;
+      this.matchHost?.tick(now);
+      this.matchFrameId = request(loop);
+    };
+    this.matchFrameId = request(loop);
+  }
+
+  private stopMatch(): void {
+    if (this.matchFrameId !== null) {
+      (this.deps.cancelFrame ?? cancelAnimationFrame)(this.matchFrameId);
+      this.matchFrameId = null;
+    }
+    this.matchHost = null;
+    this.matchClient?.stop();
+    this.matchClient = null;
+    this.matchRenderer?.destroy();
+    this.matchRenderer = null;
   }
 
   joinRoom(code: string, name: string): void {
@@ -314,6 +409,7 @@ export class SessionController {
 
   backToIdle(): void {
     this.startToken += 1;
+    this.stopMatch();
     this.detachHud();
     this.engine?.dispose();
     this.engine = null;
@@ -335,6 +431,40 @@ export class SessionController {
     this.clearConnectTimer();
     lobbyStore.set({ status: "ready", pid: outcome.pid, error: null });
     this.setState(SESSION_STATE.joinedLobby);
+    this.listenForMatchStart(outcome.pid);
+  }
+
+  private listenForMatchStart(localPid: number): void {
+    const transport = this.lobbyTransport;
+    if (transport === null) return;
+    this.lobbyUnsubscribers.push(
+      transport.onMessage((msg: NetworkMessage) => {
+        if (msg.t !== "start" || this.matchClient !== null) return;
+        this.beginClientMatch(msg, localPid);
+      }),
+    );
+  }
+
+  private beginClientMatch(msg: NetworkMessage, localPid: number): void {
+    const parsed = parseStart(msg);
+    const transport = this.lobbyTransport;
+    if (!parsed.ok || transport === null) return;
+    const hostPeerId = hostPeerIdFor(lobbyStore.getSnapshot().roomCode ?? "");
+    const renderer = this.matchRenderer;
+    if (renderer === null) return;
+    this.matchClient = new MatchClient({
+      transport,
+      hostPeerId,
+      localPid,
+      renderer,
+      inputBuffer: this.inputBuffer,
+      now: () => performance.now(),
+      requestFrame: (cb) =>
+        (this.deps.requestFrame ?? requestAnimationFrame)(cb),
+      cancelFrame: (id) => (this.deps.cancelFrame ?? cancelAnimationFrame)(id),
+    });
+    this.matchClient.start();
+    this.setState(SESSION_STATE.playingNetwork);
   }
 
   private failLobby(reason: string, detail?: string): void {
@@ -364,6 +494,7 @@ export class SessionController {
     this.handshakeClient = null;
     this.lobbyTransport?.close();
     this.lobbyTransport = null;
+    this.lobbyRoster = null;
   }
 
   private clearConnectTimer(): void {
