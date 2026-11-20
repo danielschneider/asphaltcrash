@@ -25,7 +25,7 @@ body,
 }
 
 .game-surface,
-.joystick-pad,
+.joystick-zone,
 .action-button {
   touch-action: none;
   user-select: none;
@@ -251,15 +251,26 @@ body,
   color: inherit;
 }
 
-.joystick-pad {
+.joystick-zone {
   position: absolute;
-  left: calc(env(safe-area-inset-left) + 16px);
-  bottom: calc(env(safe-area-inset-bottom) + 16px);
+  left: calc(env(safe-area-inset-left) + clamp(80px, 10vw, 120px));
+  bottom: calc(env(safe-area-inset-bottom) + 72px);
+  width: min(58vw, 560px);
+  height: min(64vh, 480px);
+}
+
+.joystick-base {
+  position: absolute;
+  top: 0;
+  left: 0;
   width: calc(var(--joystick-diameter, 144px));
   height: calc(var(--joystick-diameter, 144px));
   border-radius: 50%;
   background: rgba(255, 255, 255, 0.12);
   border: 2px solid rgba(255, 255, 255, 0.25);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 100ms ease-out;
 }
 
 .joystick-knob {

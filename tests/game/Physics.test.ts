@@ -45,6 +45,24 @@ describe("PhysicsWorld", () => {
     world.dispose();
   });
 
+  it("does not spin while stationary and steers once moving", () => {
+    const world = createWorld();
+    world.addCar(1, 600, 800, 0);
+
+    for (let i = 0; i < 60; i += 1) {
+      world.applyControl(1, { throttle: 0, steer: 1, boost: false }, false);
+      world.step();
+    }
+    expect(world.getCar(1)?.angle).toBeCloseTo(0, 6);
+
+    for (let i = 0; i < 60; i += 1) {
+      world.applyControl(1, { throttle: 1, steer: 1, boost: false }, false);
+      world.step();
+    }
+    expect(world.getCar(1)?.angle ?? 0).toBeGreaterThan(0.2);
+    world.dispose();
+  });
+
   it("loses speed on impact with the right wall and stays inside it", () => {
     const world = createWorld();
     const wallInnerEdge = gameConfig.arenaWidth;

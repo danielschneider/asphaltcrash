@@ -297,11 +297,20 @@ export class PhysicsWorld {
       0,
       1,
     );
+    const steerEngagement = clamp(
+      speedFraction / gameConfig.steerFullEngagementSpeedFraction,
+      0,
+      1,
+    );
     const steerScale = 1 - gameConfig.steerSpeedPenalty * speedFraction;
     const direction = forwardPxs < 0 ? -1 : 1;
     Matter.Body.setAngularVelocity(
       body,
-      (steer * direction * gameConfig.steerRateRadPerSec * steerScale) /
+      (steer *
+        direction *
+        gameConfig.steerRateRadPerSec *
+        steerEngagement *
+        steerScale) /
         FIXED_STEP_HZ,
     );
   }

@@ -255,7 +255,7 @@ Engine settings (verified against matter-js 0.20.0 `Engine.create` defaults):
 ### 6.5 Input
 - `InputBuffer` holds `{ throttle: -1..1, steer: -1..1, action: boolean }` written by pointer events, read by Engine.
 - The joystick DOM component writes to the buffer through a ref/callback; it does not set React state on each move.
-- Dead zone 0.12, circular joystick to square mapping, steer uses x, throttle uses y.
+- Dead zone 0.12, square-mapped joystick axes, steer uses x, throttle uses y. On touch down, the floating stick anchors at the thumb position within the lower-left control zone.
 - Host input for local player is written straight into `sim.setInput`; client input is sent as `InputFrame` at 30 Hz plus immediately on button edge.
 
 ### 6.6 Bots

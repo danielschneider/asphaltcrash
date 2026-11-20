@@ -59,8 +59,9 @@ Bills are visible to all players. Pickup and delivery are determined by the host
 | Joystick left/right | steer left/right |
 | Action button (right thumb, Q-04) | boost (short forward impulse, 2 s cooldown) |
 
-- Joystick: fixed position in the lower-left quadrant, radius 72 px (CSS units), dead zone 12 %.
-- Steering is proportional to joystick X and scaled by speed: full steer at low speed, reduced at high speed (`steerScale = 1 - 0.5 * speedFraction`).
+- Joystick: floating control anchored at the initial touch within a broad lower-left zone, radius 72 px (CSS units), dead zone 12 %.
+- Joystick X and Y map independently to steering and throttle so full diagonal input can apply both at once.
+- Steering response ramps from zero at rest to full engagement at 25 % of max forward speed, then is reduced at high speed (`steerScale = 1 - 0.5 * speedFraction`).
 
 ### 4.2 Physics feel (targets, verified only on device)
 | Parameter | Initial value |
@@ -269,8 +270,9 @@ Implemented with the browser Web Audio API only (no audio library). Pure math li
 | `lateralGrip` | 0.9 | Lateral grip fraction removed per second (section 4.2) |
 | `airFriction` | 0.02 | Air friction (section 4.2) |
 | `boostSpeedBonus` | 160 | Boost speed bonus in px/s (section 4.2) |
-| `steerRateRadPerSec` | 2.6 | Full-lock steer rate at zero speed in rad/s |
+| `steerRateRadPerSec` | 2.6 | Full-lock steer rate at full engagement in rad/s |
 | `steerSpeedPenalty` | 0.5 | Steer reduction at top speed (section 4.1) |
+| `steerFullEngagementSpeedFraction` | 0.25 | Speed fraction at which full steering response is reached (section 4.1) |
 | `joystickRadiusPx` | 72 | Virtual joystick radius in px (section 4.1) |
 | `joystickDeadZone` | 0.12 | Joystick dead zone fraction (section 4.1) |
 | `botDefaultCount` | 3 | Default bot count in solo mode |

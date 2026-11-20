@@ -7,7 +7,8 @@ interface JoystickPadProps {
 
 export function JoystickPad({ inputBuffer }: JoystickPadProps) {
   const {
-    padRef,
+    zoneRef,
+    baseRef,
     knobRef,
     handlePointerDown,
     handlePointerMove,
@@ -16,14 +17,16 @@ export function JoystickPad({ inputBuffer }: JoystickPadProps) {
 
   return (
     <div
-      ref={padRef}
-      className="joystick-pad"
+      ref={zoneRef}
+      className="joystick-zone"
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
       onPointerCancel={handlePointerUp}
     >
-      <div ref={knobRef} className="joystick-knob" />
+      <div ref={baseRef} className="joystick-base">
+        <div ref={knobRef} className="joystick-knob" />
+      </div>
     </div>
   );
 }

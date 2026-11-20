@@ -14,7 +14,8 @@ export interface StickState {
 }
 
 export interface JoystickBinding {
-  readonly padRef: RefObject<HTMLDivElement | null>;
+  readonly zoneRef: RefObject<HTMLDivElement | null>;
+  readonly baseRef: RefObject<HTMLDivElement | null>;
   readonly knobRef: RefObject<HTMLDivElement | null>;
   readonly handlePointerDown: (
     event: ReactPointerEvent<HTMLDivElement>,
@@ -50,11 +51,18 @@ export function resolveStick(
   if (magnitude <= deadZone) return { knobX, knobY, steer: 0, throttle: 0 };
   // Dead zone is rescaled so output ramps from 0 at the edge of the zone to 1 at full deflection.
   const strength = (magnitude - deadZone) / (1 - deadZone);
-  return { knobX, knobY, steer: unitX * strength, throttle: -unitY * strength };
+  const dominantAxis = Math.max(Math.abs(unitX), Math.abs(unitY));
+  return {
+    knobX,
+    knobY,
+    steer: (unitX / dominantAxis) * strength,
+    throttle: (-unitY / dominantAxis) * strength,
+  };
 }
 
 export function useJoystick(inputBuffer: InputBuffer): JoystickBinding {
-  const padRef = useRef<HTMLDivElement>(null);
+  const zoneRef = useRef<HTMLDivElement>(null);
+  const baseRef = useRef<HTMLDivElement>(null);
   const knobRef = useRef<HTMLDivElement>(null);
   const pointerIdRef = useRef<number>(NO_POINTER);
   const centerRef = useRef<Point>({ x: 0, y: 0 });
@@ -79,11 +87,16 @@ export function useJoystick(inputBuffer: InputBuffer): JoystickBinding {
     if (pointerIdRef.current !== NO_POINTER) return;
     pointerIdRef.current = event.pointerId;
     event.currentTarget.setPointerCapture(event.pointerId);
-    const rect = event.currentTarget.getBoundingClientRect();
-    centerRef.current = {
-      x: rect.left + rect.width / 2,
-      y: rect.top + rect.height / 2,
-    };
+    centerRef.current = { x: event.clientX, y: event.clientY };
+    const zoneRect = event.currentTarget.getBoundingClientRect();
+    if (baseRef.current) {
+      const offsetX =
+        event.clientX - zoneRect.left - gameConfig.joystickRadiusPx;
+      const offsetY =
+        event.clientY - zoneRect.top - gameConfig.joystickRadiusPx;
+      baseRef.current.style.transform = `translate3d(${offsetX}px, ${offsetY}px, 0)`;
+      baseRef.current.style.opacity = "1";
+    }
     applyStick(event.clientX, event.clientY);
   };
 
@@ -98,11 +111,13 @@ export function useJoystick(inputBuffer: InputBuffer): JoystickBinding {
     if (event.pointerId !== pointerIdRef.current) return;
     pointerIdRef.current = NO_POINTER;
     if (knobRef.current) knobRef.current.style.transform = "";
+    if (baseRef.current) baseRef.current.style.opacity = "0";
     inputBuffer.write({ steer: 0, throttle: 0 });
   };
 
   return {
-    padRef,
+    zoneRef,
+    baseRef,
     knobRef,
     handlePointerDown,
     handlePointerMove,

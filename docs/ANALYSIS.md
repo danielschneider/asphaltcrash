@@ -176,7 +176,7 @@ Plain DOM and Preact were considered. React is kept because the README and the o
 Bot difficulty levels: `easy`, `normal`, `hard` as parameters (reaction delay, aim error, steering precision), not separate code.
 
 ### 3.9 D11 – Controls
-- **Virtual joystick only (README).** Left thumb: analog direction. Mapping: up = throttle, down = brake/reverse, left/right = steer. Joystick is a DOM/Pointer element on the left half, fixed position or floating (decision: fixed, see GAMEPLAY).
+- **Virtual joystick only (README).** Left thumb: analog direction. Mapping: up = throttle, down = brake/reverse, left/right = steer. Joystick is a DOM/Pointer element in a broad lower-left touch zone and floats to the initial thumb position.
 - **Second control: boost/handbrake button (right thumb).** Recommended because drifting and handbrake are key for fighting. Not part of README; flagged as Q-04.
 - **Tilt/gyro.** Requires `DeviceOrientationEvent.requestPermission()` on iOS. Rejected for v1.
 

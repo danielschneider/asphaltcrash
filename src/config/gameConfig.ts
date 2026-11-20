@@ -85,6 +85,7 @@ export interface GameConfigShape {
   readonly boostSpeedBonus: number;
   readonly steerRateRadPerSec: number;
   readonly steerSpeedPenalty: number;
+  readonly steerFullEngagementSpeedFraction: number;
   readonly joystickRadiusPx: number;
   readonly joystickDeadZone: number;
   readonly botDefaultCount: number;
@@ -217,9 +218,10 @@ export const gameConfig = {
   wallFriction: 0.1,
   wallRestitution: 0.45,
   boostSpeedBonus: 160,
-  // Initial tuning. Full-lock turn rate at zero speed; scaled down by steerSpeedPenalty at top speed (GAMEPLAY 4.1).
+  // Steering ramps in with speed to avoid turning in place, then tapers at top speed (GAMEPLAY 4.1).
   steerRateRadPerSec: 2.6,
   steerSpeedPenalty: 0.5,
+  steerFullEngagementSpeedFraction: 0.25,
   joystickRadiusPx: 72,
   joystickDeadZone: 0.12,
   botDefaultCount: 3,
