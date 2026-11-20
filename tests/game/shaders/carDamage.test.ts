@@ -13,6 +13,7 @@ import {
   damageFromHealth,
   smoothDamage,
 } from "../../../src/game/shaders/carDamage";
+import { gameConfig } from "../../../src/config/gameConfig";
 
 describe("damageFromHealth", () => {
   it("maps full health to 0 and zero health to 1", () => {
@@ -67,6 +68,12 @@ describe("smoothDamage", () => {
   it("holds the current value for zero dt or zero rate", () => {
     expect(smoothDamage(0.3, 1, 0, 4)).toBeCloseTo(0.3);
     expect(smoothDamage(0.3, 1, 0.1, 0)).toBeCloseTo(0.3);
+  });
+});
+
+describe("car damage visual config", () => {
+  it("keeps the whole-body tone pass disabled so damage shows as marks only", () => {
+    expect(gameConfig.carDamageShaderEnabled).toBe(false);
   });
 });
 

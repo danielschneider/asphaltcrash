@@ -2,7 +2,10 @@ import { describe, expect, it, vi } from "vitest";
 import { gameConfig } from "../../src/config/gameConfig";
 import { MatchSimulation } from "../../src/game/sim/MatchSimulation";
 import type { InputFrame } from "../../src/game/input/InputFrame";
-import type { NetworkMessage } from "../../src/network/protocol/messages";
+import type {
+  NetworkMessage,
+  ScoreItem,
+} from "../../src/network/protocol/messages";
 import type {
   Transport,
   Unsubscribe,
@@ -87,7 +90,8 @@ const SHORT_MATCH_SECONDS = 2;
 interface HarnessOptions {
   readonly humanPids?: readonly number[];
   readonly botPids?: readonly number[];
-  readonly matchSeconds?: number;
+  matchSeconds?: number;
+  readonly onFinished?: (scores: readonly ScoreItem[]) => void;
 }
 
 function createHarness(options: HarnessOptions = {}) {
@@ -115,6 +119,7 @@ function createHarness(options: HarnessOptions = {}) {
     pidForPeer: (peerId) => PEER_TO_PID[peerId],
     peerIdForPid: (pid) => PID_TO_PEER[pid],
     hostInput: () => HOST_INPUT,
+    ...(options.onFinished ? { onFinished: options.onFinished } : {}),
   };
   const clock = { now: 0 };
   const host = new MatchHost(deps);
@@ -273,6 +278,30 @@ describe("MatchHost", () => {
     clock.now = 10 * STEP_MS;
     host.tick(clock.now);
     expect(transport.sent).toHaveLength(1);
+  });
+
+  it("calls onFinished once with the end scores and stops emitting snapshots", () => {
+    const onFinished = vi.fn();
+    const { host, transport, clock } = createHarness({
+      botPids: [],
+      matchSeconds: 1,
+      onFinished,
+    });
+    host.start();
+    host.handleInbound(readyFor(77), CLIENT_PEER);
+    for (let step = 1; step <= gameConfig.fixedStepHz; step += 1) {
+      clock.now = step * STEP_MS;
+      host.tick(clock.now);
+    }
+    expect(onFinished).toHaveBeenCalledTimes(1);
+    const end = sentOf(transport, "end")[0]?.message;
+    expect(onFinished).toHaveBeenCalledWith(
+      end?.t === "end" ? end.scores : undefined,
+    );
+    const snapsBefore = sentOf(transport, "snap").length;
+    clock.now += STEP_MS * 30;
+    host.tick(clock.now);
+    expect(sentOf(transport, "snap")).toHaveLength(snapsBefore);
   });
 
   it("exposes a read-only snapshot and arena of the running sim", () => {

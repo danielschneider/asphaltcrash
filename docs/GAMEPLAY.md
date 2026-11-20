@@ -160,7 +160,7 @@ Arena size and spawn layout are authored constants, not procedural. Procedural m
 - Home base: outlined rectangle with color of owner.
 - Floor: subdued gray asphalt texture (single tile texture).
 - Ground detail: a static layout (`src/game/ground/groundLayout.ts`) of asphalt speckle dots, a few lighter/darker patch tiles, muted white dashed lane lines through the arena centre and a dark curb strip along the inner wall edges. It is drawn once in world space under the bases and cars, so it scrolls under the car as the camera follows. Counts and dash sizes are set by `groundSpeckleCount`, `groundPatchCount`, `groundLaneDashLength`, `groundLaneDashGap` and `groundCurbWidth`.
-- Car damage: as health drops, a tone-only shader pass on each car body darkens and desaturates the paint (no spatial pattern in the shader). Damage = 1 - hp / maxHealth, smoothed per frame. Disabled by `carDamageShaderEnabled`.
+- Car damage: the car paint is never tinted or desaturated. The tone-only shader pass is off (`carDamageShaderEnabled: false`); it used to grey out the whole car. Damage = 1 - hp / maxHealth, smoothed per frame, and only drives the damage marks below.
 - Damage marks: `carDamageScratchCount` thin dark scratches, crack polylines and grime dots are drawn in car-local coordinates inside the car container, so they rotate with the car body and stay fixed on it while steering. Layout is fixed per car slot from `visualSeed`. Each mark fades in when damage passes its own threshold (ramp `carDamageMarkRamp`). Marks are hidden for destroyed cars.
 
 ### 8.2 Effects
@@ -274,10 +274,10 @@ Implemented with the browser Web Audio API only (no audio library). Pure math li
 | `botDefaultCount` | 3 | Default bot count in solo mode |
 | `botProfiles` | easy / normal / hard | Bot profile parameters (`reactionDelayTicks`, `aimNoiseRad`, `steerGain`, `aggression`) |
 | `playerColors` | 16 hex colours | Car colours assigned by slot order |
-| `carDamageShaderEnabled` | true | Enables the car damage filter (section 8.1) |
+| `carDamageShaderEnabled` | false | Enables the car damage tone filter (section 8.1). Off: damage shows as marks only, paint stays unchanged |
 | `carDamageMaxStrength` | 0.85 | Shader strength at full damage (0..1) |
 | `carDamageSmoothingRate` | 4 | Damage smoothing rate per second |
-| `carDamageScratchCount` | 6 | Number of damage marks per car (scratches, cracks, grime dots) drawn on the car body (section 8.1) |
+| `carDamageScratchCount` | 10 | Number of damage marks per car (scratches, cracks, grime dots) drawn on the car body (section 8.1) |
 | `carDamageMarkRamp` | 0.35 | Damage span over which each mark fades from 0 to full alpha (section 8.1) |
 | `groundSpeckleCount` | 900 | Static asphalt speckle dots on the arena floor, fixed in world space (section 8.1) |
 | `groundPatchCount` | 14 | Slightly lighter or darker asphalt tiles on the floor (section 8.1) |

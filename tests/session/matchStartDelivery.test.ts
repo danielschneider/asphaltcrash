@@ -82,4 +82,20 @@ describe("match start delivery", () => {
     host.backToIdle();
     client.backToIdle();
   });
+
+  it("backToIdle after a running network match returns host to idle and closes the lobby", async () => {
+    const host = createController(hub);
+    host.createRoom("Host");
+    const code = lobbyStore.getSnapshot().roomCode ?? "";
+    const client = createController(hub);
+    client.joinRoom(code, "Ann");
+    await flush();
+    host.setLobbyBotCount(1);
+    host.startMatch();
+    await flush();
+    expect(host.getState()).toBe(SESSION_STATE.playingNetwork);
+    host.backToIdle();
+    expect(host.getState()).toBe(SESSION_STATE.idle);
+    client.backToIdle();
+  });
 });

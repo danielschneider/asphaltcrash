@@ -26,6 +26,7 @@ export interface MatchClientDeps {
   readonly now: () => number;
   readonly requestFrame: (cb: (t: number) => void) => number;
   readonly cancelFrame: (id: number) => void;
+  readonly onEnd?: (msg: EndMessage) => void;
 }
 
 const UNSEEDED = -1;
@@ -86,7 +87,7 @@ export class MatchClient {
     const nowMs = this.deps.now();
     const dtSeconds = this.takeFrameSeconds(nowMs);
     this.pumpInput(nowMs);
-    this.renderFrame(nowMs, dtSeconds);
+    this.renderFrame(dtSeconds);
     this.frameId = this.deps.requestFrame(this.handleFrame);
   };
 
@@ -146,6 +147,7 @@ export class MatchClient {
     if (msg.mid !== this.matchId) return;
     this.scores = msg.scores;
     this.finished = true;
+    this.deps.onEnd?.(msg);
   }
 
   private pumpInput(nowMs: number): void {
@@ -157,10 +159,10 @@ export class MatchClient {
     this.inputSender.tick(nowMs);
   }
 
-  private renderFrame(nowMs: number, dtSeconds: number): void {
+  private renderFrame(dtSeconds: number): void {
     const arena = this.arena;
     if (arena === null) return;
-    const sample = this.remote.sampleAt(nowMs);
+    const sample = this.remote.advance(dtSeconds);
     if (sample === null) return;
     this.deps.renderer.update(
       buildWorldView(sample, arena, this.deps.localPid),

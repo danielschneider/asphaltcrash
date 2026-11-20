@@ -47,6 +47,7 @@ export interface MatchHostDeps {
   readonly pidForPeer: (peerId: PeerId) => number | undefined;
   readonly peerIdForPid: (pid: number) => PeerId | undefined;
   readonly hostInput: () => InputFrame;
+  readonly onFinished?: (scores: readonly ScoreItem[]) => void;
 }
 
 const HOST_PID = 0;
@@ -221,9 +222,17 @@ export class MatchHost {
     console.log(
       `[mp][host] match end tick=${this.sim.tick} snapsSent=${this.snapsSent}`,
     );
+    const end = this.buildEnd();
+    for (const pid of this.clientPids) {
+      this.sendToPid(pid, end, "reliable");
+    }
+    this.deps.onFinished?.(end.scores);
+  }
+
+  private buildEnd(): EndMessage {
     const snapshot = this.pump.capture();
     const scores = new Map(snapshot.cars.map((car) => [car.pid, car.score]));
-    const end: EndMessage = {
+    return {
       v: PROTOCOL_VERSION,
       t: "end",
       mid: this.matchId,
@@ -235,8 +244,5 @@ export class MatchHost {
       ]),
       winners: resolveWinners(scores),
     };
-    for (const pid of this.clientPids) {
-      this.sendToPid(pid, end, "reliable");
-    }
   }
 }

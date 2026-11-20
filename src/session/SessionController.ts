@@ -34,9 +34,9 @@ import { frameSecondsSince } from "./frameSeconds";
 import { buildWorldView } from "../game/WorldView";
 import { buildArenaView } from "../game/arena";
 import { parseStart } from "../network/match/startMessage";
-import type { NetworkMessage } from "../network/protocol/messages";
+import type { NetworkMessage, ScoreItem } from "../network/protocol/messages";
 import { generatePlayerName, generateUniquePlayerName } from "./playerNames";
-import { hudStore, type HudStore } from "../store/hudStore";
+import { hudStore, type HudSnapshot, type HudStore } from "../store/hudStore";
 import {
   lobbyStore,
   peerErrorToMessage,
@@ -56,6 +56,7 @@ export const SESSION_STATE = {
   idle: "idle",
   playingSolo: "playingSolo",
   ended: "ended",
+  endedNetwork: "endedNetwork",
   hostingLobby: "hostingLobby",
   joining: "joining",
   joinedLobby: "joinedLobby",
@@ -133,6 +134,22 @@ function createHelloToken(randomBytes: RandomBytes): string {
   return Array.from(randomBytes(HELLO_TOKEN_LENGTH), (byte) =>
     TOKEN_ALPHABET.charAt(byte % TOKEN_ALPHABET.length),
   ).join("");
+}
+
+function buildEndHud(
+  scores: readonly ScoreItem[],
+  localPid: number,
+): HudSnapshot {
+  const local = scores.find((row) => row[0] === localPid);
+  return {
+    remainingMs: 0,
+    score: local?.[1] ?? 0,
+    cargo: 0,
+    hp: 0,
+    scores: scores.map(([pid, score]) => ({ pid, score })),
+    feed: [],
+    paused: false,
+  };
 }
 
 export class SessionController {
@@ -332,6 +349,7 @@ export class SessionController {
       pidForPeer: (peerId) => this.lobbyRoster?.pidForPeer(peerId),
       peerIdForPid: (pid) => this.lobbyRoster?.peerIdForPid(pid),
       hostInput: () => this.inputBuffer.latest(),
+      onFinished: (scores) => this.finishNetworkMatch(scores, HOST_PID),
     });
     this.lobbyUnsubscribers.push(
       transport.onMessage((msg: NetworkMessage, from) => {
@@ -410,6 +428,7 @@ export class SessionController {
       requestFrame: (cb) =>
         (this.deps.requestFrame ?? requestAnimationFrame)(cb),
       cancelFrame: (id) => (this.deps.cancelFrame ?? cancelAnimationFrame)(id),
+      onEnd: (msg) => this.finishNetworkMatch(msg.scores, pending.localPid),
     });
     console.log("[mp][client] MatchClient.start");
     this.matchClient.start(pending.start);
@@ -426,6 +445,25 @@ export class SessionController {
       this.matchFrameId = request(loop);
     };
     this.matchFrameId = request(loop);
+  }
+
+  private finishNetworkMatch(
+    scores: readonly ScoreItem[],
+    localPid: number,
+  ): void {
+    if (this.state !== SESSION_STATE.playingNetwork) return;
+    console.log("[mp][match] finishNetworkMatch");
+    this.cancelMatchFrame();
+    this.matchClient?.stop();
+    this.matchClient = null;
+    this.deps.hud.push(buildEndHud(scores, localPid));
+    this.setState(SESSION_STATE.endedNetwork);
+  }
+
+  private cancelMatchFrame(): void {
+    if (this.matchFrameId === null) return;
+    (this.deps.cancelFrame ?? cancelAnimationFrame)(this.matchFrameId);
+    this.matchFrameId = null;
   }
 
   private renderHostFrame(nowMs: number): void {
@@ -450,10 +488,7 @@ export class SessionController {
   }
 
   private stopMatch(): void {
-    if (this.matchFrameId !== null) {
-      (this.deps.cancelFrame ?? cancelAnimationFrame)(this.matchFrameId);
-      this.matchFrameId = null;
-    }
+    this.cancelMatchFrame();
     this.matchHost = null;
     this.releaseMatchRenderer();
     this.pendingStart = null;

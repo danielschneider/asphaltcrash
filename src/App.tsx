@@ -29,7 +29,10 @@ export function App() {
     setSoloOptions(null);
   };
 
-  if (sessionState === SESSION_STATE.ended) {
+  if (
+    sessionState === SESSION_STATE.ended ||
+    sessionState === SESSION_STATE.endedNetwork
+  ) {
     return (
       <div className="app-root">
         <ResultScreen onBack={handleExit} />
