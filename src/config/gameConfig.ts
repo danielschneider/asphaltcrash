@@ -88,6 +88,7 @@ export interface GameConfigShape {
   readonly steerFullEngagementSpeedFraction: number;
   readonly joystickRadiusPx: number;
   readonly joystickDeadZone: number;
+  readonly joystickSteerDeadZone: number;
   readonly botDefaultCount: number;
   readonly botSeedStride: number;
   readonly botAttackRadiusPx: number;
@@ -224,6 +225,7 @@ export const gameConfig = {
   steerFullEngagementSpeedFraction: 0.25,
   joystickRadiusPx: 72,
   joystickDeadZone: 0.12,
+  joystickSteerDeadZone: 0.15,
   botDefaultCount: 3,
   botSeedStride: 7919,
   botAttackRadiusPx: 350,

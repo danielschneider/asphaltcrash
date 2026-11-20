@@ -9,17 +9,31 @@ import { resolveStick } from "../../src/hooks/useJoystick";
 describe("resolveStick", () => {
   it("allows full steering and throttle together on a diagonal", () => {
     const component = 72 / Math.sqrt(2);
-    const stick = resolveStick(component, -component, 72, 0.12);
+    const stick = resolveStick(component, -component, 72, 0.12, 0.15);
 
     expect(stick.steer).toBeCloseTo(1);
     expect(stick.throttle).toBeCloseTo(1);
   });
 
   it("keeps small movements inside the dead zone neutral", () => {
-    const stick = resolveStick(4, 4, 72, 0.12);
+    const stick = resolveStick(4, 4, 72, 0.12, 0.15);
 
     expect(stick.steer).toBe(0);
     expect(stick.throttle).toBe(0);
+  });
+
+  it("ignores small sideways drift while preserving full forward throttle", () => {
+    const stick = resolveStick(8, -72, 72, 0.12, 0.15);
+
+    expect(stick.steer).toBe(0);
+    expect(stick.throttle).toBeCloseTo(1);
+  });
+
+  it("smoothly ramps steering beyond the steering dead zone", () => {
+    const stick = resolveStick(18, -72, 72, 0.12, 0.15);
+
+    expect(stick.steer).toBeCloseTo((0.25 - 0.15) / (1 - 0.15));
+    expect(stick.throttle).toBeCloseTo(1);
   });
 });
 

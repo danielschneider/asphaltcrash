@@ -39,6 +39,7 @@ export function resolveStick(
   dy: number,
   radius: number,
   deadZone: number,
+  steerDeadZone: number,
 ): StickState {
   const length = Math.hypot(dx, dy);
   if (length === 0) return IDLE_STICK;
@@ -52,10 +53,16 @@ export function resolveStick(
   // Dead zone is rescaled so output ramps from 0 at the edge of the zone to 1 at full deflection.
   const strength = (magnitude - deadZone) / (1 - deadZone);
   const dominantAxis = Math.max(Math.abs(unitX), Math.abs(unitY));
+  const rawSteer = (unitX / dominantAxis) * strength;
+  const steerMagnitude = Math.abs(rawSteer);
   return {
     knobX,
     knobY,
-    steer: (unitX / dominantAxis) * strength,
+    steer:
+      steerMagnitude <= steerDeadZone
+        ? 0
+        : (Math.sign(rawSteer) * (steerMagnitude - steerDeadZone)) /
+          (1 - steerDeadZone),
     throttle: (-unitY / dominantAxis) * strength,
   };
 }
@@ -74,6 +81,7 @@ export function useJoystick(inputBuffer: InputBuffer): JoystickBinding {
       clientY - center.y,
       gameConfig.joystickRadiusPx,
       gameConfig.joystickDeadZone,
+      gameConfig.joystickSteerDeadZone,
     );
     if (knobRef.current) {
       knobRef.current.style.transform = `translate3d(${stick.knobX}px, ${stick.knobY}px, 0)`;

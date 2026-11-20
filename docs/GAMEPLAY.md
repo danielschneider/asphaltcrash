@@ -61,6 +61,7 @@ Bills are visible to all players. Pickup and delivery are determined by the host
 
 - Joystick: floating control anchored at the initial touch within a broad lower-left zone, radius 72 px (CSS units), dead zone 12 %.
 - Joystick X and Y map independently to steering and throttle so full diagonal input can apply both at once.
+- Steering has a separate 15 % input dead zone to filter small sideways thumb movement; remaining steering input ramps smoothly to full.
 - Steering response ramps from zero at rest to full engagement at 25 % of max forward speed, then is reduced at high speed (`steerScale = 1 - 0.5 * speedFraction`).
 
 ### 4.2 Physics feel (targets, verified only on device)
@@ -275,6 +276,7 @@ Implemented with the browser Web Audio API only (no audio library). Pure math li
 | `steerFullEngagementSpeedFraction` | 0.25 | Speed fraction at which full steering response is reached (section 4.1) |
 | `joystickRadiusPx` | 72 | Virtual joystick radius in px (section 4.1) |
 | `joystickDeadZone` | 0.12 | Joystick dead zone fraction (section 4.1) |
+| `joystickSteerDeadZone` | 0.15 | Steering-only input dead zone fraction (section 4.1) |
 | `botDefaultCount` | 3 | Default bot count in solo mode |
 | `botProfiles` | easy / normal / hard | Bot profile parameters (`reactionDelayTicks`, `aimNoiseRad`, `steerGain`, `aggression`) |
 | `playerColors` | 16 hex colours | Car colours assigned by slot order |
