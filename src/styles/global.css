@@ -89,6 +89,17 @@ body,
   font-weight: 600;
 }
 
+.lobby-code-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+}
+
+.lobby-copy-button {
+  min-width: 96px;
+}
+
 .mode-switch {
   display: grid;
   grid-template-columns: 1fr 1fr;

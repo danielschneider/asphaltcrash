@@ -84,7 +84,7 @@ Field names are short to reduce bytes. Documented mapping is normative.
 
 | Idx | Name | Type | Encoding |
 |-----|------|------|----------|
-| 0 | pid | int 0–7 | raw |
+| 0 | pid | int 0–15 | raw |
 | 1 | x | number | round to 0.1 px |
 | 2 | y | number | round to 0.1 px |
 | 3 | a (heading) | int | rad × 1000, range −3142..3142 |

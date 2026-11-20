@@ -1,15 +1,11 @@
-import { gameConfig } from "../../config/gameConfig";
 import type { MatchSnapshot } from "../../types/game";
 import { toSnapMessage } from "../protocol/codec";
 import type { SnapMessage } from "../protocol/messages";
+import { SNAPSHOT_STRIDE_TICKS } from "./snapshotStride";
 
 export interface SnapshotSource {
   snapshot(): MatchSnapshot;
 }
-
-const SNAPSHOT_STRIDE = Math.round(
-  gameConfig.fixedStepHz / gameConfig.snapshotHz,
-);
 
 export class SnapshotPump {
   private readonly source: SnapshotSource;
@@ -24,7 +20,7 @@ export class SnapshotPump {
   }
 
   due(tick: number): boolean {
-    return tick % SNAPSHOT_STRIDE === 0;
+    return tick % SNAPSHOT_STRIDE_TICKS === 0;
   }
 
   capture(): MatchSnapshot {

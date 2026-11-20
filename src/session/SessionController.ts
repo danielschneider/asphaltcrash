@@ -474,7 +474,7 @@ export class SessionController {
     const dtSeconds = frameSecondsSince(this.hostRenderMs, nowMs);
     this.hostRenderMs = nowMs;
     renderer.update(
-      buildWorldView(host.snapshot(), host.arena, HOST_PID),
+      buildWorldView(host.renderSnapshot(), host.arena, HOST_PID),
       dtSeconds,
     );
   }

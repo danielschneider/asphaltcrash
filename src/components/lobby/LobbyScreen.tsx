@@ -1,4 +1,4 @@
-import { useId, type ChangeEvent } from "react";
+import { useId, useState, type ChangeEvent } from "react";
 import { gameConfig } from "../../config/gameConfig";
 import { useLobby } from "../../hooks/useLobby";
 import { sessionController } from "../../session/SessionController";
@@ -12,6 +12,19 @@ import { lobbyStatusText, type LobbySnapshot } from "../../store/lobbyStore";
 
 const EMPTY_ROOM_CODE = "------";
 const MIN_START_CARS = 2;
+const COPY_FEEDBACK_MS = 1500;
+
+type CopyState = "idle" | "copied" | "failed";
+
+const COPY_LABELS = {
+  idle: "Copy",
+  copied: "Copied",
+  failed: "Failed",
+} as const satisfies Record<CopyState, string>;
+
+async function writeToClipboard(text: string): Promise<void> {
+  await navigator.clipboard.writeText(text);
+}
 
 function describeRole(snapshot: LobbySnapshot): string {
   if (snapshot.role === "host") return "Hosting";
@@ -28,10 +41,23 @@ function describeStatus(snapshot: LobbySnapshot): string {
 export function LobbyScreen() {
   const snapshot = useLobby();
   const botCountId = useId();
+  const [copyState, setCopyState] = useState<CopyState>("idle");
 
   const handleBack = (): void => {
     sessionController.backToIdle();
   };
+
+  const handleCopyCode = (): void => {
+    if (snapshot.roomCode === null) return;
+    writeToClipboard(snapshot.roomCode)
+      .then(() => setCopyState("copied"))
+      .catch(() => setCopyState("failed"))
+      .finally(() => {
+        window.setTimeout(() => setCopyState("idle"), COPY_FEEDBACK_MS);
+      });
+  };
+
+  const copyLabel = COPY_LABELS[copyState];
 
   const handleStartMatch = (): void => {
     sessionController.startMatch();
@@ -53,9 +79,19 @@ export function LobbyScreen() {
       <p className="lobby-subtitle">Lobby</p>
       <div className="start-form">
         <p className="lobby-role">{describeRole(snapshot)}</p>
-        <p className="lobby-code" aria-label="Room code">
-          {snapshot.roomCode ?? EMPTY_ROOM_CODE}
-        </p>
+        <div className="lobby-code-row">
+          <p className="lobby-code" aria-label="Room code">
+            {snapshot.roomCode ?? EMPTY_ROOM_CODE}
+          </p>
+          <button
+            type="button"
+            className="button lobby-copy-button"
+            disabled={snapshot.roomCode === null}
+            onClick={handleCopyCode}
+          >
+            {copyLabel}
+          </button>
+        </div>
         <p className="lobby-status">{describeStatus(snapshot)}</p>
         {snapshot.error !== null ? (
           <p role="alert" className="lobby-error">

@@ -190,7 +190,7 @@ Notes:
 
 ### 6.1 Engine (L3)
 - Runs `requestAnimationFrame`.
-- Fixed simulation step: `STEP = 1/60 s`. Accumulator pattern: `acc += min(frameDelta, 0.25)`; while `acc >= STEP`: `sim.tick(STEP)`, `acc -= STEP`. Render uses `alpha = acc / STEP` only for local shadow car. Remote entities use snapshot interpolation, not alpha.
+- Fixed simulation step: `STEP = 1/60 s`. Accumulator pattern: `acc += min(frameDelta, 0.25)`; while `acc >= STEP`: `sim.tick(STEP)`, `acc -= STEP`. Render alpha: `alpha = acc / STEP` after the step loop. Solo `Engine` and host `MatchHost` keep the sim state before and after the last fixed step (`StateInterpolator` in `src/game/sim/`) and render `lerp(prev, curr, alpha)` for positions and shortest-arc angles; hp, flags, cargo and score switch at alpha 0.5; bills come from the nearer state. The sim state is never written by the renderer. Clients still use snapshot interpolation for remote cars (6.7).
 - Frame order each rAF:
   1. Read `InputBuffer` (latest values).
   2. Drain network inbox (`SnapshotBuffer.push`, events).
@@ -291,7 +291,7 @@ Consequence: the reliable and unreliable channels are two separate `DataConnecti
 
 Both are opened by the client on connect, and the host accepts both through the `connection` event. Track them together per peer, and close both on disconnect.
 
-Serialization note: the `json` serializer rejects encoded messages at or above `util.chunkedMTU` bytes and emits `MessageToBig`. Snapshots must stay below that size (about 500 bytes in the current design, see NETWORK_PROTOCOL 4.2.3). The `binary` serializer is the PeerJS default; choose one serializer for both channels in P2.2 and record it here.
+Serialization note: the `json` serializer rejects encoded messages at or above `util.chunkedMTU` bytes and emits `MessageToBig`. The limit is `chunkedMTU` = 16300 bytes (PeerJS 1.5.5 `bundler.mjs`). Snapshots are far below it: about 500 bytes is a bandwidth estimate (NETWORK_PROTOCOL 4.2.3), not an MTU limit. The `binary` serializer is the PeerJS default; choose one serializer for both channels in P2.2 and record it here.
 
 The "unordered, no retransmit" behavior of `reliable: false` is the intended meaning of the flag, but the browser-level delivery semantics on iPadOS are still assumption A-02 (device test in P2.1).
 
@@ -398,7 +398,7 @@ Items marked "verify on device" in the roadmap must be tested on a real iPad bef
 ---
 
 ## 10. Configuration
-All tunables live in `src/config/gameConfig.ts` as a single typed object (const, no enums). Values are listed in `GAMEPLAY.md` section 9. Network constants (`SNAPSHOT_HZ=20`, `INPUT_HZ=30`, `INTERP_DELAY_MS=100`, `RECONNECT_WINDOW_MS=45000`, `MAX_HUMANS=4`, `MAX_CARS=8`) are in the same file.
+All tunables live in `src/config/gameConfig.ts` as a single typed object (const, no enums). Values are listed in `GAMEPLAY.md` section 9. Network constants (`SNAPSHOT_HZ=20`, `INPUT_HZ=30`, `INTERP_DELAY_MS=100`, `RECONNECT_WINDOW_MS=45000`, `MAX_HUMANS=4`, `MAX_CARS=16`, i.e. `gameConfig.maxCars`) are in the same file.
 
 Environment (build-time, Vite):
 | Variable | Purpose | Required |

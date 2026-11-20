@@ -2,6 +2,7 @@ import { gameConfig } from "../config/gameConfig";
 import type { InputFrame } from "../game/input/InputFrame";
 import type { MatchSimulation } from "../game/sim/MatchSimulation";
 import { timerRemainingMs } from "../game/sim/Scoring";
+import { StateInterpolator } from "../game/sim/StateInterpolator";
 import { resolveWinners } from "../game/WorldView";
 import { InputReceiver } from "../network/match/InputReceiver";
 import { SnapshotPump } from "../network/match/SnapshotPump";
@@ -64,6 +65,7 @@ export class MatchHost {
   private readonly receiver = new InputReceiver();
   private readonly acks = new Map<number, number>();
   private readonly pump: SnapshotPump;
+  private readonly interpolator: StateInterpolator;
   private readonly readyPids = new Set<number>();
   private phaseValue: MatchHostPhase = MATCH_HOST_PHASE.idle;
   private matchId = 0;
@@ -84,6 +86,7 @@ export class MatchHost {
     this.clientPids = deps.humanPids.filter((pid) => pid !== HOST_PID);
     this.sim = deps.makeSim(this.setup);
     this.pump = new SnapshotPump(this.sim, this.acks);
+    this.interpolator = new StateInterpolator(this.sim.snapshot());
   }
 
   get phase(): MatchHostPhase {
@@ -96,6 +99,11 @@ export class MatchHost {
 
   snapshot(): MatchSnapshot {
     return this.sim.snapshot();
+  }
+
+  // Host-local render state: interpolated between the last two sim steps at accumulator / STEP. Read-only for sim.
+  renderSnapshot(): MatchSnapshot {
+    return this.interpolator.sample(this.accumulatorMs / STEP_MS);
   }
 
   start(): void {
@@ -180,6 +188,7 @@ export class MatchHost {
       this.sim.setInput(pid, this.receiver.latest(pid, nowMs));
     }
     this.sim.step();
+    this.interpolator.push(this.sim.snapshot());
     const tick = this.sim.tick;
     if (this.pump.due(tick)) {
       this.broadcastSnapshots();

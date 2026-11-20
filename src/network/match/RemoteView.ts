@@ -1,11 +1,11 @@
 import { gameConfig } from "../../config/gameConfig";
 import type { MatchSnapshot } from "../../types/game";
 import { SnapshotBuffer } from "../sync/SnapshotBuffer";
+import { SNAPSHOT_STRIDE_TICKS } from "./snapshotStride";
 
 export const HOST_STEP_MS = 1000 / gameConfig.fixedStepHz;
 
 const DELAY_TICKS = gameConfig.interpDelayMs / HOST_STEP_MS;
-const SNAPSHOT_STRIDE_TICKS = gameConfig.fixedStepHz / gameConfig.snapshotHz;
 const SNAP_THRESHOLD_TICKS = 2 * SNAPSHOT_STRIDE_TICKS;
 const EASE_RATE_PER_SEC = 4;
 const MAX_RATE_DEVIATION = 0.5;

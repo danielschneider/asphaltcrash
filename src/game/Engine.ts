@@ -10,6 +10,7 @@ import type { MatchSimulation } from "./sim/MatchSimulation";
 import type { WorldRenderer } from "./Renderer";
 import type { InputSource } from "./input/InputSource";
 import { buildWorldView } from "./WorldView";
+import { StateInterpolator } from "./sim/StateInterpolator";
 
 export interface CarAudioSink {
   update(cars: readonly CarView[], localPid: number, dtSeconds: number): void;
@@ -101,6 +102,7 @@ export class Engine {
   private readonly cancelFrame: (id: number) => void;
   private readonly feed: string[] = [];
   private readonly detachVisibility: () => void;
+  private readonly interpolator: StateInterpolator;
   private running = false;
   private userPaused = false;
   private hiddenPaused = false;
@@ -113,6 +115,7 @@ export class Engine {
     this.deps = deps;
     this.requestFrame = deps.requestFrame ?? defaultRequestFrame;
     this.cancelFrame = deps.cancelFrame ?? defaultCancelFrame;
+    this.interpolator = new StateInterpolator(deps.sim.snapshot());
     this.detachVisibility = subscribeVisibility(this.handleVisibilityChange);
   }
 
@@ -184,6 +187,7 @@ export class Engine {
 
   private discardAccumulator(): boolean {
     this.accumulator = 0;
+    this.interpolator.collapse();
     return false;
   }
 
@@ -212,6 +216,7 @@ export class Engine {
     for (const event of sim.step()) {
       this.recordFeed(event);
     }
+    this.interpolator.push(sim.snapshot());
     this.stepCount += 1;
   }
 
@@ -222,13 +227,18 @@ export class Engine {
     if (this.feed.length > FEED_LENGTH) this.feed.shift();
   }
 
+  // Renders between the last two sim states at alpha = accumulator / STEP. Sim state itself is never changed here.
   private render(hudDue: boolean, dtSeconds: number): void {
-    const { sim, renderer, localPlayerId, audio } = this.deps;
-    const snapshot = sim.snapshot();
-    const view: WorldView = buildWorldView(snapshot, sim.arena, localPlayerId);
+    const { renderer, localPlayerId, audio } = this.deps;
+    const alpha = this.accumulator / STEP_SECONDS;
+    const view: WorldView = buildWorldView(
+      this.interpolator.sample(alpha),
+      this.deps.sim.arena,
+      localPlayerId,
+    );
     renderer.update(view, dtSeconds);
     audio?.update(view.cars, localPlayerId, clampAudioDelta(dtSeconds));
-    if (hudDue) this.pushHud(snapshot);
+    if (hudDue) this.pushHud(this.interpolator.latest);
   }
 
   private pushHud(snapshot: MatchSnapshot = this.deps.sim.snapshot()): void {
