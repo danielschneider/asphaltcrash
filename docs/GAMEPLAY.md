@@ -54,21 +54,24 @@ Bills are visible to all players. Pickup and delivery are determined by the host
 ### 4.1 Controls (virtual joystick, README R-02)
 | Input | Effect |
 |-------|--------|
-| Joystick up/down/left/right | drive in that screen direction, independent of car heading |
+| Joystick up | throttle forward |
+| Joystick down | brake, then reverse when speed ≈ 0 |
+| Joystick left/right | steer left/right |
 | Action button (right thumb, Q-04) | boost (short forward impulse, 2 s cooldown) |
 
 - Joystick: floating control anchored at the initial touch within a broad lower-left zone, radius 72 px (CSS units), dead zone 12 %.
-- Joystick X and Y map to screen-space movement. Full diagonal input is normalized so it does not exceed cardinal movement speed.
-- The car's facing is visual only for human movement; the same joystick direction always produces the same screen-space movement.
+- Joystick X and Y map independently to steering and throttle so full diagonal input can apply both at once.
+- Steering has a separate 15 % input dead zone to filter small sideways thumb movement; remaining steering input ramps smoothly to full.
+- Steering response ramps from zero at rest to full engagement at 25 % of max forward speed, then is reduced at high speed (`steerScale = 1 - 0.5 * speedFraction`).
 
 ### 4.2 Physics feel (targets, verified only on device)
 | Parameter | Initial value |
 |-----------|---------------|
-| Max forward speed | 360 px/s (human movement cap in all directions) |
-| Max reverse speed | 120 px/s (bot handling only) |
+| Max forward speed | 360 px/s |
+| Max reverse speed | 120 px/s |
 | Acceleration | 650 px/s² |
-| Braking | 800 px/s² (bot handling only) |
-| Lateral grip | 1.0 (bot handling only) |
+| Braking | 800 px/s² |
+| Lateral grip | 1.0 (fraction of sideways velocity removed per second) |
 | Air friction | 0.015 |
 | Boost | +200 px/s on top of max speed, duration 0.6 s, cooldown 2 s |
 | Max collision impulse considered | capped to avoid tunneling |
@@ -127,6 +130,7 @@ Arena size and spawn layout are authored constants, not procedural. Procedural m
 
 ### 7.1 Camera
 - Follows the local player's car with smoothing (`cameraFollowLerp` 6 per second).
+- Third-person top-down view: the arena and camera rotate so the local car remains centered and points toward the top of the screen. The car's world heading and controls are unchanged; only the rendered world transform rotates.
 - Zoom: closer at rest, further out at speed (GTA-like). Target = `cameraZoomRest` 1.5 × (`cameraZoomMoving` 0.55 / 1.5)^speedFraction, a geometric blend so each speed step changes the visible area by the same proportion. speedFraction = car speed / (`maxForwardSpeed` + `boostSpeedBonus`), clamped to 0..1. Zoom is a scale factor: larger = closer. Smoothed with `cameraFollowLerp` (6/s) when closing in (braking) and with `cameraZoomOutLerp` (10/s) when widening the view (speeding up), so the view opens quickly at speed and settles slowly when braking.
 - Visible area at full speed is about 2.7× the rest area (1.5 / 0.55).
 - Clamped to arena bounds using the visible area in world units (viewport / zoom). If the viewport is larger than the arena, the arena is centered.
@@ -273,7 +277,7 @@ Implemented with the browser Web Audio API only (no audio library). Pure math li
 | `steerFullEngagementSpeedFraction` | 0.25 | Speed fraction at which full steering response is reached (section 4.1) |
 | `joystickRadiusPx` | 72 | Virtual joystick radius in px (section 4.1) |
 | `joystickDeadZone` | 0.12 | Joystick dead zone fraction (section 4.1) |
-| `joystickSteerDeadZone` | 0.15 | Additional horizontal joystick dead zone fraction (section 4.1) |
+| `joystickSteerDeadZone` | 0.15 | Steering-only input dead zone fraction (section 4.1) |
 | `botDefaultCount` | 3 | Default bot count in solo mode |
 | `botProfiles` | easy / normal / hard | Bot profile parameters (`reactionDelayTicks`, `aimNoiseRad`, `steerGain`, `aggression`) |
 | `playerColors` | 16 hex colours | Car colours assigned by slot order |
@@ -344,7 +348,7 @@ Implemented with the browser Web Audio API only (no audio library). Pure math li
 | ID | Criterion |
 |----|-----------|
 | G-01 | Solo vs 3 CPU runs for full 180 s on iPad without freezing. |
-| G-02 | A car can be driven in every screen direction with the joystick, regardless of its facing. |
+| G-02 | A car can be driven, steered, braked and reversed with the joystick only. |
 | G-03 | Collecting and delivering a bill adds the value to the score exactly once. |
 | G-04 | Ramming a car deals damage; scraping a wall does not destroy a car at normal speed. |
 | G-05 | Destroyed car drops its cargo and respawns after 3 s. |

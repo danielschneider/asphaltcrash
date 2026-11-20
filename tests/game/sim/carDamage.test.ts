@@ -28,7 +28,7 @@ describe("car damage attribution", () => {
     const start = sim.snapshot();
     let end = start;
     for (let i = 0; i < MAX_STEPS; i += 1) {
-      sim.setInput(0, { throttle: 0, steer: 1, action: false, seq: sim.tick });
+      sim.setInput(0, { throttle: 1, steer: 0, action: false, seq: sim.tick });
       sim.step();
       end = sim.snapshot();
       if (hpOf(end, 0) < hpOf(start, 0) || hpOf(end, 1) < hpOf(start, 1)) break;
@@ -52,18 +52,8 @@ describe("car damage attribution", () => {
     const start = sim.snapshot();
     let end = start;
     for (let i = 0; i < MAX_STEPS; i += 1) {
-      sim.setInput(0, {
-        throttle: 0,
-        steer: -1,
-        action: false,
-        seq: sim.tick,
-      });
-      sim.setInput(1, {
-        throttle: 0,
-        steer: -1,
-        action: false,
-        seq: sim.tick,
-      });
+      sim.setInput(0, { throttle: 1, steer: 0, action: false, seq: sim.tick });
+      sim.setInput(1, { throttle: 1, steer: 0, action: false, seq: sim.tick });
       sim.step();
       end = sim.snapshot();
       if (hpOf(end, 0) < hpOf(start, 0) && hpOf(end, 1) < hpOf(start, 1)) break;

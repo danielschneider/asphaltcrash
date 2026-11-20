@@ -25,7 +25,6 @@ export interface CarControl {
   readonly throttle: number;
   readonly steer: number;
   readonly boost: boolean;
-  readonly screenRelativeMovement?: boolean;
 }
 
 export interface PhysicsArena {
@@ -161,11 +160,6 @@ export class PhysicsWorld {
     const body = this.cars.get(pid);
     if (!body || body.isStatic) return;
 
-    if (control.screenRelativeMovement) {
-      this.applyScreenRelativeMovement(pid, body, control, boostActive);
-      return;
-    }
-
     const heading = headingOf(body.angle);
     const side = { x: -heading.y, y: heading.x };
     const forwardCap =
@@ -199,53 +193,6 @@ export class PhysicsWorld {
       forwardPxs,
       forwardCap,
       normals,
-    );
-  }
-
-  private applyScreenRelativeMovement(
-    pid: number,
-    body: Matter.Body,
-    control: CarControl,
-    boostActive: boolean,
-  ): void {
-    Matter.Body.setAngularVelocity(body, 0);
-    const normals = this.wallNormals.get(pid) ?? NO_NORMALS;
-    const speedCap =
-      gameConfig.maxForwardSpeed +
-      (boostActive ? gameConfig.boostSpeedBonus : 0);
-    Matter.Body.setVelocity(
-      body,
-      reflectOffWalls({ x: body.velocity.x, y: body.velocity.y }, normals),
-    );
-    const speed = Math.hypot(body.velocity.x, body.velocity.y) * FIXED_STEP_HZ;
-    if (speed > speedCap) {
-      const speedScale = speedCap / speed;
-      Matter.Body.setVelocity(body, {
-        x: (body.velocity.x * speedScale) / FIXED_STEP_HZ,
-        y: (body.velocity.y * speedScale) / FIXED_STEP_HZ,
-      });
-    }
-    const inputX = clamp(control.steer, -1, 1);
-    const inputY = -clamp(control.throttle, -1, 1);
-    const inputLength = Math.hypot(inputX, inputY);
-    if (inputLength === 0) return;
-
-    const direction = { x: inputX / inputLength, y: inputY / inputLength };
-    const speedAlongInput = dot(body.velocity, direction) * FIXED_STEP_HZ;
-    if (speedAlongInput >= speedCap) return;
-
-    const force =
-      gameConfig.acceleration *
-      Math.min(inputLength, 1) *
-      gameConfig.carMass *
-      FORCE_PER_ACCEL;
-    Matter.Body.applyForce(
-      body,
-      body.position,
-      removeIntoWalls(
-        { x: direction.x * force, y: direction.y * force },
-        normals,
-      ),
     );
   }
 

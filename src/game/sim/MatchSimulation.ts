@@ -295,12 +295,7 @@ export class MatchSimulation {
       car.boosting = boosting;
       this.physics.applyControl(
         pid,
-        {
-          throttle: input.throttle,
-          steer: input.steer,
-          boost: boosting,
-          screenRelativeMovement: !this.bots.has(pid),
-        },
+        { throttle: input.throttle, steer: input.steer, boost: boosting },
         boosting,
       );
       car.boostTicksLeft = Math.max(0, car.boostTicksLeft - 1);
