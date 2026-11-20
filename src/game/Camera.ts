@@ -5,14 +5,12 @@ export interface CameraState {
   readonly x: number;
   readonly y: number;
   readonly zoom: number;
-  readonly rotation: number;
 }
 
 export interface CameraTarget {
   readonly x: number;
   readonly y: number;
   readonly speedFraction: number;
-  readonly heading?: number;
 }
 
 export interface CameraViewport {
@@ -30,7 +28,6 @@ export function createCamera(arena: CameraBounds | ArenaView): CameraState {
     x: arena.width / 2,
     y: arena.height / 2,
     zoom: gameConfig.cameraZoomRest,
-    rotation: 0,
   };
 }
 
@@ -59,41 +56,22 @@ export function stepCamera(
       : gameConfig.cameraFollowLerp;
   const zoomBlend = 1 - Math.exp(-zoomRate * dt);
   const zoom = state.zoom + (targetZoom - state.zoom) * zoomBlend;
-  const targetRotation =
-    target.heading === undefined
-      ? state.rotation
-      : normalizeAngle(-Math.PI / 2 - target.heading);
-  const rotationDelta = normalizeAngle(targetRotation - state.rotation);
-  const rotation = normalizeAngle(state.rotation + rotationDelta * blend);
   // Visible area in world units: viewport pixels divided by the zoom factor.
   const halfWidth = viewport.width / (2 * zoom);
   const halfHeight = viewport.height / (2 * zoom);
-  const cosRotation = Math.abs(Math.cos(rotation));
-  const sinRotation = Math.abs(Math.sin(rotation));
-  const clampedHalfWidth = cosRotation * halfWidth + sinRotation * halfHeight;
-  const clampedHalfHeight = sinRotation * halfWidth + cosRotation * halfHeight;
   return {
     x: clampCenter(
       state.x + (target.x - state.x) * blend,
-      clampedHalfWidth,
+      halfWidth,
       arena.width,
     ),
     y: clampCenter(
       state.y + (target.y - state.y) * blend,
-      clampedHalfHeight,
+      halfHeight,
       arena.height,
     ),
     zoom,
-    rotation,
   };
-}
-
-export function normalizeAngle(angle: number): number {
-  const twoPi = Math.PI * 2;
-  let normalized = angle % twoPi;
-  if (normalized > Math.PI) normalized -= twoPi;
-  if (normalized < -Math.PI) normalized += twoPi;
-  return normalized;
 }
 
 function clampCenter(value: number, halfExtent: number, size: number): number {

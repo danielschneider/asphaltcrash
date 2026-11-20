@@ -76,7 +76,7 @@ Field names are short to reduce bytes. Documented mapping is normative.
 
 | `t` | Direction | Rate | Fields |
 |-----|-----------|------|--------|
-| `in` | C→H | 30 Hz, plus on button edge | `s` (seq), `th` (throttle, int −100..100), `st` (steer, int −100..100), `a` (action bool, 0/1) |
+| `in` | C→H | 30 Hz, plus on button edge | `s` (seq), `th` (vertical drive, int −100..100), `st` (horizontal drive, int −100..100), `a` (action bool, 0/1) |
 | `snap` | H→C | 20 Hz (every 3rd tick at 60 Hz) | `k` (tick), `ak` (ackSeq of the receiving player's last applied input, 0 for bots/none), `cars`, `bills`, `tm` (match time remaining, ms) |
 
 #### 4.2.1 `snap.cars` item
@@ -126,10 +126,10 @@ Events are reliable and ordered. Clients must apply events in order. Duplicate e
 ---
 
 ## 5. Input semantics
-- `th` = throttle: +100 forward, −100 reverse/brake.
-- `st` = steer: −100 left, +100 right (screen coordinates, see GAMEPLAY).
+- `th` = vertical drive: +100 screen-up, −100 screen-down.
+- `st` = horizontal drive: −100 screen-left, +100 screen-right. Human movement is screen-relative and independent of car heading.
 - `a` = action button (boost/handbrake).
-- Host stores latest input per player and marks `seq`. It applies the input on each tick until a newer one arrives (zero-order hold). If no input arrives for 500 ms, the car's input is set to neutral (throttle 0, steer 0, no action). This protects against dropped unreliable packets.
+- Host stores latest input per player and marks `seq`. It applies the input on each tick until a newer one arrives (zero-order hold). If no input arrives for 500 ms, the car's input is set to neutral (vertical 0, horizontal 0, no action). This protects against dropped unreliable packets.
 - Clients send the latest `seq` even when the joystick is at rest. Idle heartbeats at 10 Hz keep `ackSeq` moving.
 
 ---

@@ -45,6 +45,68 @@ describe("PhysicsWorld", () => {
     world.dispose();
   });
 
+  it("drives screen-down when joystick down is held, regardless of car heading", () => {
+    const world = createWorld();
+    const startX = 600;
+    const startY = 800;
+    world.addCar(1, startX, startY, 0);
+    for (let i = 0; i < 60; i += 1) {
+      world.applyControl(
+        1,
+        {
+          throttle: -1,
+          steer: 0,
+          boost: false,
+          screenRelativeMovement: true,
+        },
+        false,
+      );
+      world.step();
+    }
+    const end = world.getCar(1);
+    expect(end?.y ?? startY).toBeGreaterThan(startY + 40);
+    expect(end?.x ?? startX).toBeCloseTo(startX, 2);
+    expect(end?.angle ?? NaN).toBeCloseTo(0, 6);
+    world.dispose();
+  });
+
+  it("drives screen-right when joystick right is held, regardless of car heading", () => {
+    const world = createWorld();
+    const startX = 600;
+    const startY = 800;
+    world.addCar(1, startX, startY, Math.PI / 2);
+    for (let i = 0; i < 60; i += 1) {
+      world.applyControl(
+        1,
+        { throttle: 0, steer: 1, boost: false, screenRelativeMovement: true },
+        false,
+      );
+      world.step();
+    }
+    const end = world.getCar(1);
+    expect(end?.x ?? startX).toBeGreaterThan(startX + 40);
+    expect(end?.y ?? startY).toBeCloseTo(startY, 2);
+    expect(end?.angle ?? NaN).toBeCloseTo(Math.PI / 2, 6);
+    world.dispose();
+  });
+
+  it("keeps diagonal screen-relative movement within the cardinal speed cap", () => {
+    const world = createWorld();
+    world.addCar(1, 600, 800, 0);
+    for (let i = 0; i < 120; i += 1) {
+      world.applyControl(
+        1,
+        { throttle: 1, steer: 1, boost: false, screenRelativeMovement: true },
+        false,
+      );
+      world.step();
+    }
+    expect(world.getCar(1)?.speed ?? Infinity).toBeLessThanOrEqual(
+      gameConfig.maxForwardSpeed + 1,
+    );
+    world.dispose();
+  });
+
   it("reaches arcade speed quickly under full throttle", () => {
     const world = createWorld();
     world.addCar(1, 600, 800, 0);
