@@ -26,14 +26,14 @@ Device targets: iPad (current iPadOS, Safari) primary; desktop Chrome for develo
 
 | # | Task | Done when |
 |---|------|-----------|
-| P0.1 | Scaffold Vite + React 19 + TypeScript strict project in repo root. | `npm run build` produces `dist/`. |
-| P0.2 | Add `tsconfig.json` (`strict`, `noUncheckedIndexedAccess`), ESLint with `eslint.config.ts` (typescript-eslint, react-hooks, `no-restricted-imports` for layer rules), Prettier. Confirm the Node version supports a TypeScript ESLint config. | `npm run lint` and `npm run typecheck` pass. |
-| P0.3 | Add Vitest, jsdom, msw. | `npm test` runs one smoke test. |
-| P0.4 | Set Vite `base` for GitHub Pages. | Built `index.html` references `/asphaltcrash/` assets. |
-| P0.5 | GitHub Actions workflow `.github/workflows/pages.yml`: install, lint, test, build, deploy. | Pages site loads from GitHub. |
-| P0.6 | Global CSS: `100dvh`, `touch-action: none`, `overscroll-behavior: none`, safe-area insets. | Blank page fills iPad viewport without scroll bounce. |
-| P0.7 | Add `RotateHint` for portrait. | Portrait shows hint on iPad. |
-| P0.8 | Create folder structure from ARCHITECTURE section 5. | Empty modules with barrel-free imports compile. |
+| P0.1 | Scaffold Vite + React 19 + TypeScript strict project in repo root. **Status: done** | `npm run build` produces `dist/`. |
+| P0.2 | Add `tsconfig.json` (`strict`, `noUncheckedIndexedAccess`), ESLint with `eslint.config.ts` (typescript-eslint, react-hooks, `no-restricted-imports` for layer rules), Prettier. Confirm the Node version supports a TypeScript ESLint config. **Status: done** (eslint config is .mjs, see ARCHITECTURE 12) | `npm run lint` and `npm run typecheck` pass. |
+| P0.3 | Add Vitest, jsdom, msw. **Status: done** | `npm test` runs one smoke test. |
+| P0.4 | Set Vite `base` for GitHub Pages. **Status: done** | Built `index.html` references `/asphaltcrash/` assets. |
+| P0.5 | GitHub Actions workflow `.github/workflows/pages.yml`: install, lint, test, build, deploy. Not started (owner confirmation needed). | Pages site loads from GitHub. |
+| P0.6 | Global CSS: `100dvh`, `touch-action: none`, `overscroll-behavior: none`, safe-area insets. **Status: done** | Blank page fills iPad viewport without scroll bounce. |
+| P0.7 | Add `RotateHint` for portrait. **Status: done** | Portrait shows hint on iPad. |
+| P0.8 | Create folder structure from ARCHITECTURE section 5. **Status: done** | Empty modules with barrel-free imports compile. |
 
 **Exit gate G0:** deployed blank app opens on iPad Safari from GitHub Pages URL; CI green.
 
@@ -45,15 +45,15 @@ Device targets: iPad (current iPadOS, Safari) primary; desktop Chrome for develo
 
 | # | Task | Done when |
 |---|------|-----------|
-| P1.1 | `Physics.ts` adapter around Matter.js 0.20.0: world with gravity disabled (`gravity.scale = 0`), car body, walls, sensors. | Car drives with joystick input. |
-| P1.2 | Car handling model (GAMEPLAY 4). | Steering, braking, reverse, lateral grip behave per 4.2 on iPad. |
-| P1.3 | `Renderer.ts` with PixiJS v8: arena, car sprites, camera follow, zoom. | 60 FPS on iPad with 4 cars (measured, record in this file). |
-| P1.4 | `JoystickPad` and `InputBuffer`. | Multi-touch works: steer and action simultaneously. |
-| P1.5 | `MatchSimulation` skeleton and fixed-step `Engine`. | Deterministic step order; unit tests for step order pass. |
-| P1.6 | Bills: spawn, pickup, delivery, cargo, score (GAMEPLAY 3). | Unit tests G-03 pass; manual check on iPad. |
-| P1.7 | Damage model and respawn (GAMEPLAY 5). | Unit tests for `applyDamage`, cooldown, attribution. G-04, G-05 pass manually. |
-| P1.8 | Measure: Matter.js tunneling at max speed with 2 and 4 substeps. | Result recorded in ARCHITECTURE section 13 (A-05). |
-| P1.9 | Measure: Pixi frame time with 8 cars, 12 bills, effects on iPad. | Result recorded (A-06). |
+| P1.1 | `Physics.ts` adapter around Matter.js 0.20.0: world with gravity disabled (`gravity.scale = 0`), car body, walls, sensors. **Status: done (desktop)** | Car drives with joystick input. |
+| P1.2 | Car handling model (GAMEPLAY 4). **Status: done (desktop)** | Steering, braking, reverse, lateral grip behave per 4.2 on iPad. |
+| P1.3 | `Renderer.ts` with PixiJS v8: arena, car sprites, camera follow, zoom. **Status: done (desktop)** | 60 FPS on iPad with 4 cars (measured, record in this file). |
+| P1.4 | `JoystickPad` and `InputBuffer`. **Status: done (desktop)** | Multi-touch works: steer and action simultaneously. |
+| P1.5 | `MatchSimulation` skeleton and fixed-step `Engine`. **Status: done (desktop)** | Deterministic step order; unit tests for step order pass. |
+| P1.6 | Bills: spawn, pickup, delivery, cargo, score (GAMEPLAY 3). **Status: done (desktop)** | Unit tests G-03 pass; manual check on iPad. |
+| P1.7 | Damage model and respawn (GAMEPLAY 5). **Status: done (desktop)** | Unit tests for `applyDamage`, cooldown, attribution. G-04, G-05 pass manually. |
+| P1.8 | Measure: Matter.js tunneling at max speed with 2 and 4 substeps. **Status: pending (device)**; desktop Node measurement only; tunneling test not performed. | Result recorded in ARCHITECTURE section 13 (A-05). |
+| P1.9 | Measure: Pixi frame time with 8 cars, 12 bills, effects on iPad. **Status: pending (device)**; Pixi measurement pending. | Result recorded (A-06). |
 
 **Exit gate G1:** solo driving, collecting and ramming feels acceptable on iPad (owner sign-off). Tuning values committed to `gameConfig.ts`.
 
@@ -162,7 +162,7 @@ Device targets: iPad (current iPadOS, Safari) primary; desktop Chrome for develo
 
 | Date | Item | Result | Device |
 |------|------|--------|--------|
-| – | Matter.js tunneling (P1.8) | pending | – |
-| – | Pixi frame time 8 cars (P1.9) | pending | – |
+| 2026-11-20 | Matter sim.step mean/p95 (4 cars, 7 bills, 1200 steps) | 0.0215 ms mean, 0.0439 ms p95; tunneling (P1.8) pending | desktop, Node, not iPad |
+| 2026-11-20 | Pixi frame time 8 cars (P1.9) | pending, headless not measurable | desktop Chrome pending, not iPad |
 | – | PeerJS connect over mobile data (P2.6) | pending | – |
 | – | Snapshot bandwidth (P3) | pending | – |

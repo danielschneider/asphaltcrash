@@ -1,0 +1,23 @@
+import { gameConfig } from "../../config/gameConfig";
+import type { BotDifficulty } from "../../types/game";
+
+export const BOT_STATES = [
+  "SeekBill",
+  "DeliverCash",
+  "Attack",
+  "Evade",
+  "Recover",
+] as const;
+
+export type BotState = (typeof BOT_STATES)[number];
+
+export interface BotProfile {
+  readonly reactionDelayTicks: number;
+  readonly aimNoiseRad: number;
+  readonly steerGain: number;
+  readonly aggression: number;
+}
+
+export function profileFor(difficulty: BotDifficulty): BotProfile {
+  return gameConfig.botProfiles[difficulty];
+}

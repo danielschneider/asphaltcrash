@@ -14,7 +14,7 @@ AsphaltCrash is a top-down 2D car combat and cash-collection arena game for iPad
 1. No backend code. No server process in the repo. Static hosting only.
 2. Target is iPadOS Safari. Every feature must be considered against Safari limits (see ARCHITECTURE section 9).
 3. Host-authoritative simulation. Clients never decide physics, damage, bills, or score.
-4. Default 4 human players, configurable via `maxHumans` in `gameConfig.ts`. Do not hard-lock the value. Max 8 cars total.
+4. Default 4 human players, configurable via `maxHumans` in `gameConfig.ts`. Do not hard-lock the value. Max 16 cars total (4 humans + up to 12 CPU).
 5. Libraries: `react`, `react-dom`, `peerjs` (1.5.5), `matter-js` (0.20.0), `pixi.js` (8.23.0), `vite`, TypeScript. Pin exact versions at P0. Adding a dependency requires a note in ANALYSIS or ARCHITECTURE and owner approval.
 5a. The entire game is TypeScript. The only expected non-TypeScript file is the GitHub Actions workflow YAML.
 5b. Hosting is GitHub Pages only. No client-side routes; join links use `?join=CODE`.
@@ -92,6 +92,9 @@ Keep the dependency direction downward. If a feature needs an upward dependency,
 | `npm run lint` | ESLint incl. layer rules |
 | `npm test` | Vitest |
 | `npm run test:watch` | Vitest watch mode |
+| `npm run check` | Full static gate: typecheck, lint, format check, knip, tests with coverage. Must be green. |
+
+`npm run check` must be green before any task is reported done and before any commit. It runs typecheck, lint, format:check, knip, and test:coverage.
 
 Run all of `typecheck`, `lint`, `test`, `build` before reporting a task as complete.
 
@@ -141,7 +144,7 @@ Run all of `typecheck`, `lint`, `test`, `build` before reporting a task as compl
 - Work in small commits, one per roadmap task ID where possible (for example `P1.2: car handling model`).
 - Do not commit until the owner asks, unless the current task explicitly says so.
 - Do not force-push. Do not rewrite history on `main`.
-- Each PR/commit must pass the commands in section 5 and update `docs/ROADMAP.md` status for the task IDs it completes.
+- Mandatory gate: `npm run check` (section 5) must be green for every PR/commit and must also update `docs/ROADMAP.md` status for the task IDs it completes.
 
 ---
 

@@ -111,7 +111,7 @@ asphaltcrash/
 ├── index.html
 ├── vite.config.ts              # base: '/asphaltcrash/' for GitHub Pages
 ├── tsconfig.json               # strict: true
-├── eslint.config.ts               # TypeScript config, see P0.2 (Node version check)
+├── eslint.config.mjs              # ESLint flat config (not .ts, see section 12)
 ├── .github/workflows/pages.yml    # only non-TypeScript file, CI/deploy
 ├── public/
 │   └── manifest.webmanifest    # P5
@@ -430,6 +430,22 @@ Vite exposes only `VITE_*` variables to the client bundle. Do not put server sec
 | HTTP mocks | msw | Only where HTTP is used (e.g. optional TURN credential fetch). WebRTC is not mockable with msw; use `LocalTransport` instead. |
 | Component size | Lint rule or review | Components ≤ 300 lines |
 | Device test | Manual checklist in ROADMAP | iPad Safari on Wi-Fi and mobile data |
+| Import cycles | `eslint-plugin-import-x` (`import-x/no-cycle`, `import-x/no-duplicates`) | No circular imports between modules; no duplicate import statements |
+| Cognitive complexity | `eslint-plugin-sonarjs` (`sonarjs/cognitive-complexity` at 15 for `src/game/sim/**`, `Physics.ts`, `Rules.ts`; off elsewhere) | Strict limit only in deterministic core |
+| Component size | ESLint `max-lines` (300, blank lines and comments skipped) on `src/components/**` and `src/hooks/**` | Hard lint error, replaces review-only check |
+| Restricted properties | ESLint `no-restricted-properties` | `Math.random`, `Date.now`, `performance.now`, `process.env` forbidden per layer (sim, bots, config, Physics, Rules; `process.env` also in game and components) |
+| Enum and React.FC ban | ESLint `no-restricted-syntax` on `src/**` | No `enum` declarations; no `React.FC` / `FC` type references |
+| No explicit any | `@typescript-eslint/no-explicit-any` on `src/**` and `tests/**` | Error; any use requires a justification comment |
+| Unused code | `knip` (`npm run knip`) | No unused files, exports or dependencies |
+| Coverage | `@vitest/coverage-v8` (`npm run test:coverage`) | Reported only; no coverage threshold yet |
+| Layer scanner test | `tests/architecture/layers.test.ts` (Vitest) | Scans imports against the layer table in section 3 |
+| Config sync test | `tests/docs/configSync.test.ts` (Vitest) | Every `gameConfig` key is documented in GAMEPLAY section 9 or allowlisted; no stale entries |
+
+Not in use:
+- `eslint-plugin-boundaries` was skipped: install failed with ETARGET (`@boundaries/config@1.0.3` not found). Layer rules are enforced by `no-restricted-imports` plus the layer scanner test instead.
+- `dependency-cruiser` (18.8.0) is installed as a devDependency but not wired into any script or config.
+
+ESLint config format: the config is `eslint.config.mjs`, not `eslint.config.ts`. ESLint 10 needs `jiti` to load TypeScript config files on Node 26, and `jiti` is not an approved dependency (AGENTS 2). The layer rules (`no-restricted-imports`) are defined in `eslint.config.mjs`.
 
 ---
 
@@ -440,12 +456,13 @@ Vite exposes only `VITE_*` variables to the client bundle. Do not put server sec
 | A-02 | PeerJS `reliable: false` yields unordered, non-retransmitted delivery on iPadOS Safari. Source confirms the flag is per connection (PeerJS 1.5.5). | Partly verified (source). Device test P2.1 |
 | A-03 | `navigator.wakeLock` is available on iPadOS 16.4+. | To verify on device |
 | A-04 | `100dvh` is supported on target iPadOS version. | To verify on device |
-| A-05 | Matter.js 60 Hz fixed step with 2–4 substeps is stable for 4 fast cars. | To measure at P1 |
-| A-06 | PixiJS v8 WebGL2 on iPad maintains 60 FPS with 8 cars, 12 bills and effects. | To measure at P1 |
-| A-07 | Matter.js contact impulse reading is available via `collisionActive` pairs. | Open. Matter.js `Engine.update` fires `collisionActive` with pairs; the impulse field and its source file (`Detector.js`, `Resolver.js`) were not confirmed. Verify in P1.7 |
-| A-09 | Matter.js has no continuous collision detection in `Engine.update`. | Partly verified (engine source has no sweep step). Tunneling threshold measured in P1.8 |
+| A-05 | Matter.js 60 Hz fixed step with 2–4 substeps is stable for 4 fast cars. | Partly measured: sim step 0.02 ms mean desktop Node (4 cars); substep tunneling not yet tested (P1.8) |
+| A-06 | PixiJS v8 WebGL2 on iPad maintains 60 FPS with 8 cars, 12 bills and effects. | Pending: not measured on desktop headless; device P1.9 |
+| A-07 | Matter.js contact impulse reading is available via `collisionActive` pairs. | Workaround: impulse derived from normal-velocity change times reduced mass (Matter 0.20.0 pair has no impulse field, verified in build/matter.js). Device/feel check P1.7 pending |
+| A-09 | Matter.js has no continuous collision detection in `Engine.update`. | Partly verified (engine source has no sweep step); no sweep in Engine.update; tunneling test P1.8 pending |
 | A-10 | PixiJS 8.23.0 `ParticleContainer` is available for smoke and sparks. | Verified (package subpath exports and pipe registration in source) |
 | A-08 | Browsers do not allow orientation lock; landscape enforced only by UI hint. | Known platform behavior |
+| A-11 | Snapshot JSON worst case about 667 bytes (8 cars, 12 bills) vs 500 byte estimate in NETWORK_PROTOCOL 4.2.3. | Owner decision needed |
 
 ---
 
@@ -465,3 +482,11 @@ Vite exposes only `VITE_*` variables to the client bundle. Do not put server sec
 | ADR-010 | 45 s reconnect window with token in `sessionStorage` | Accepted |
 | ADR-011 | STUN only in v1; TURN postponed. Optional TURN build-time env kept as a hook, not used. Own free relay server only if P2.6 shows real failures. | Accepted (owner Q-02) |
 | ADR-012 | No backend in v1 | Accepted |
+| ADR-014 | Exact pinned versions: react 19.3.1, react-dom 19.3.1, pixi.js 8.23.0, matter-js 0.20.0, @types/matter-js 0.20.0, @types/react 19.3.0, @types/react-dom 19.3.0, typescript 5.9.3 (typescript-eslint 8.73.0 peer requires typescript <6.1), vite 8.3.8, @vitejs/plugin-react 6.3.0, vitest 5.1.1, jsdom 31.0.1, msw 3.0.7, @testing-library/react 16.3.3, @testing-library/dom 10.4.2, eslint 10.15.0, typescript-eslint 8.73.0, eslint-plugin-react-hooks 7.1.1, prettier 3.10.1. Node v26.13.1, npm 12.0.2 | Accepted |
+| ADR-015 | Node 26 / ESLint 10: `eslint.config.mjs` instead of `.ts` (jiti not approved) | Accepted |
+| ADR-016 | Transport seam: `LocalTransport` loopback through JSON codec; `PeerTransport` stub (throws until P2) | Accepted |
+| ADR-017 | Simulation seam: `MatchSimulation.step()` takes no args (fixed step), `setInput(pid)`, `MatchSnapshot` uses full names mapped to wire names in codec only | Accepted |
+| ADR-018 | Physics seam: only `Physics.ts` imports matter-js, plain contact events, impulse derived | Accepted |
+| ADR-019 | Renderer seam: `WorldView` input; `ParticleContainer` imported from `pixi.js` main entry (subpath has no .d.ts) | Accepted |
+| ADR-020 | `SessionController`: solo states only; network states are placeholders | Accepted |
+| ADR-021 | Static checks: import-x (cycles, duplicates), sonarjs (complexity in sim core), knip (unused code), coverage-v8 (report only, no threshold); eslint-plugin-boundaries skipped (ETARGET `@boundaries/config@1.0.3`), dependency-cruiser installed but unused | Accepted |

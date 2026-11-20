@@ -7,7 +7,7 @@ Open decisions reference `ANALYSIS.md` section 7 (Q-xx).
 
 ## 1. Match overview
 - Arena: enclosed rectangle, walls on all sides, optional interior static obstacles (none in v1 except walls and bases).
-- Players: 1–4 humans, 0–7 bots, total cars ≤ 8.
+- Players: 1–4 humans, 0–12 bots, total cars ≤ 16.
 - Each car has a **Home Base** (rectangle) placed next to its spawn point.
 - Cash bills spawn in the arena. Players collect bills by driving over them and deliver them to their own Home Base.
 - Cars fight by ramming. Damage reduces health. Destroyed cars drop their cargo and respawn.
@@ -65,9 +65,9 @@ Bills are visible to all players. Pickup and delivery are determined by the host
 ### 4.2 Physics feel (targets, verified only on device)
 | Parameter | Initial value |
 |-----------|---------------|
-| Max forward speed | 260 px/s |
+| Max forward speed | 280 px/s |
 | Max reverse speed | 120 px/s |
-| Acceleration | 420 px/s² |
+| Acceleration | 300 px/s² |
 | Braking | 600 px/s² |
 | Lateral grip | 0.9 (fraction of sideways velocity removed per second) |
 | Air friction | 0.02 |
@@ -85,6 +85,7 @@ Lateral grip creates the "car, not box" feel. Lower grip = more drift. Tuning is
 - `damage = clamp((impulse - impulseThreshold) * damageFactor, 0, maxDamagePerHit)`
 - Initial values: `impulseThreshold = 0.8`, `damageFactor = 9`, `maxDamagePerHit = 40`.
 - Wall hits use the same formula with the wall as "attacker" but no attacker bonus.
+- Car-car hits: the **rammer** (the car whose pre-step velocity has the larger component along the contact normal toward the other car) takes `damage * rammerDamageShare` (0.25), the victim takes full `damage`.
 - Each car pair has a **contact cooldown of 300 ms** so one continuous scrape does not deal damage every frame.
 - Car health: 100 HP.
 - A car reaching 0 HP is **destroyed**.
@@ -112,9 +113,9 @@ Lateral grip creates the "car, not box" feel. Lower grip = more drift. Tuning is
 
 | Property | Value |
 |----------|-------|
-| Size | 2400 × 1600 px (world units) |
+| Size | 3200 × 2400 px (world units) |
 | Walls | thickness 40 px, static |
-| Spawn points | 4 for humans + up to 4 for bots, placed symmetrically around the arena |
+| Spawn points | 4 for humans (corners) + 12 for bots (edges and inner columns), mirror-symmetric on both axes |
 | Home Base | 160 × 120 px rectangle, next to each spawn point, drawn in the owner's color |
 | Obstacles | none in v1. Optional barrier props in P5. |
 | Arena layout | Single fixed layout in v1, seed only varies bill positions and bot names. |
@@ -126,9 +127,9 @@ Arena size and spawn layout are authored constants, not procedural. Procedural m
 ## 7. Camera and HUD
 
 ### 7.1 Camera
-- Follows the local player's car with smoothing (lerp factor 6 per second).
-- Zoom: 0.6 at high speed, 1.0 at rest. Smoothed.
-- Clamped to arena bounds. If the viewport is larger than the arena, the arena is centered.
+- Follows the local player's car with smoothing (`cameraFollowLerp` 6 per second).
+- Zoom: closer at rest, further out at speed (GTA-like). Target = lerp(`cameraZoomRest` 1.6, `cameraZoomMoving` 1.0, speedFraction), speedFraction clamped to 0..1. Smoothed with the same follow lerp. Zoom is a scale factor: larger = closer.
+- Clamped to arena bounds using the visible area in world units (viewport / zoom). If the viewport is larger than the arena, the arena is centered.
 - Spectator mode (solo host with no local car, not in v1).
 
 ### 7.2 HUD (React DOM)
@@ -158,6 +159,9 @@ Arena size and spawn layout are authored constants, not procedural. Procedural m
 - Bill: green rectangle with value label.
 - Home base: outlined rectangle with color of owner.
 - Floor: subdued gray asphalt texture (single tile texture).
+- Ground detail: a static layout (`src/game/ground/groundLayout.ts`) of asphalt speckle dots, a few lighter/darker patch tiles, muted white dashed lane lines through the arena centre and a dark curb strip along the inner wall edges. It is drawn once in world space under the bases and cars, so it scrolls under the car as the camera follows. Counts and dash sizes are set by `groundSpeckleCount`, `groundPatchCount`, `groundLaneDashLength`, `groundLaneDashGap` and `groundCurbWidth`.
+- Car damage: as health drops, a tone-only shader pass on each car body darkens and desaturates the paint (no spatial pattern in the shader). Damage = 1 - hp / maxHealth, smoothed per frame. Disabled by `carDamageShaderEnabled`.
+- Damage marks: `carDamageScratchCount` thin dark scratches, crack polylines and grime dots are drawn in car-local coordinates inside the car container, so they rotate with the car body and stay fixed on it while steering. Layout is fixed per car slot from `visualSeed`. Each mark fades in when damage passes its own threshold (ramp `carDamageMarkRamp`). Marks are hidden for destroyed cars.
 
 ### 8.2 Effects
 | Effect | Trigger | Budget |
@@ -192,12 +196,13 @@ Quality toggles in Settings: `Effects: full | reduced`, `Tire marks: on | off`. 
 |-----|-------|-------|
 | `matchSeconds` | 180 | Q-03 |
 | `maxHumans` | 4 | default, configurable, not hard-locked (Q-01) |
-| `maxCars` | 8 | humans + bots |
+| `maxCars` | 16 | humans + bots (4 + up to 12) |
 | `startCountdownSeconds` | 3 | |
 | `respawnSeconds` | 3 | |
 | `invulnerableAfterRespawnSeconds` | 2 | |
 | `maxHealth` | 100 | |
 | `maxDamagePerHit` | 40 | |
+| `rammerDamageShare` | 0.25 | Share of damage the rammer takes in car-car hits (section 5.1) |
 | `damageThresholdImpulse` | 0.8 | |
 | `damageFactor` | 9 | |
 | `contactCooldownMs` | 300 | |
@@ -205,6 +210,7 @@ Quality toggles in Settings: `Effects: full | reduced`, `Tire marks: on | off`. 
 | `cargoCapacity` | 5 | |
 | `maxBillsOnField` | 12 | |
 | `billSpawnIntervalSeconds` | 2.5 | |
+| `billRadius` | 12 | Bill pickup sensor radius in px (added for Physics.ts) |
 | `killBonus` | 50 | |
 | `boostSeconds` | 0.6 | |
 | `boostCooldownSeconds` | 2 | |
@@ -214,13 +220,69 @@ Quality toggles in Settings: `Effects: full | reduced`, `Tire marks: on | off`. 
 | `reconnectWindowMs` | 45000 | |
 | `inputTimeoutMs` | 500 | |
 | `hostSilenceTimeoutMs` | 15000 | |
+| `botAttackRadiusPx` | 350 | Bot attacks an enemy within this distance (hp >= 30) |
+| `botEvadeRadiusPx` | 200 | Bot evades an enemy within this distance when hp < 60 and not attacking |
+| `timerWarningSeconds` | [30, 10, 0] | Remaining-time thresholds for timer warnings |
+| `fixedStepHz` | 60 | Fixed simulation step rate (1/60 s) |
+| `maxFrameDeltaMs` | 250 | Frame delta clamp for the Engine accumulator |
+| `hudHz` | 10 | HUD store update rate |
+| `visualSeed` | 1337 | Seed for bill positions and visual variation |
+| `botSeedStride` | 7919 | Seed offset per bot RNG |
+| `billPlacementAttempts` | 20 | Attempts to find a valid bill spawn point |
+| `billMinDistanceFromBase` | 120 | Minimum bill distance from any Home Base in px |
+| `billValues` | [10, 20, 50] | Bill values |
+| `billWeightsPct` | [70, 20, 10] | Spawn weights in percent, matching `billValues` |
+| `hitEventThreshold` | 0.5 | Impulse above which a `hit` event is emitted |
+| `cameraShakePx` | 4 | Camera shake amplitude in px |
+| `cameraShakeMs` | 150 | Camera shake duration in ms |
+| `cameraZoomRest` | 1.6 | Camera zoom factor at rest (larger = closer), section 7.1 |
+| `cameraZoomMoving` | 1.0 | Camera zoom factor at full speed, section 7.1 |
+| `cameraFollowLerp` | 6 | Camera follow and zoom smoothing rate per second, section 7.1 |
+| `arenaWidth` | 3200 | Arena width in world units (px) |
+| `arenaHeight` | 2400 | Arena height in world units (px) |
+| `wallThickness` | 40 | Static wall thickness in px |
+| `wallFriction` | 0.1 | Wall body friction |
+| `wallRestitution` | 0.45 | Wall body restitution (bounciness); also used for the wall deflection of car velocity |
+| `carWidth` | 48 | Car body width in px |
+| `carHeight` | 24 | Car body height in px |
+| `carMass` | 1.2 | Matter.js body mass (see gameConfig comment) |
+| `carFriction` | 0.05 | Car body friction |
+| `carRestitution` | 0.35 | Car body restitution (bounciness) |
+| `baseWidth` | 160 | Home Base width in px |
+| `baseHeight` | 120 | Home Base height in px |
+| `humanSpawns` | 4 points (x, y, angle) | Human spawn points, angle in rad toward arena centre |
+| `botSpawns` | 12 points (x, y, angle) | Bot spawn points, angle in rad toward arena centre |
+| `maxForwardSpeed` | 280 | Max forward speed in px/s (section 4.2) |
+| `maxReverseSpeed` | 120 | Max reverse speed in px/s (section 4.2) |
+| `acceleration` | 300 | Acceleration in px/s² (section 4.2) |
+| `braking` | 600 | Braking in px/s² (section 4.2) |
+| `lateralGrip` | 0.9 | Lateral grip fraction removed per second (section 4.2) |
+| `airFriction` | 0.02 | Air friction (section 4.2) |
+| `boostSpeedBonus` | 160 | Boost speed bonus in px/s (section 4.2) |
+| `steerRateRadPerSec` | 2.6 | Full-lock steer rate at zero speed in rad/s |
+| `steerSpeedPenalty` | 0.5 | Steer reduction at top speed (section 4.1) |
+| `joystickRadiusPx` | 72 | Virtual joystick radius in px (section 4.1) |
+| `joystickDeadZone` | 0.12 | Joystick dead zone fraction (section 4.1) |
+| `botDefaultCount` | 3 | Default bot count in solo mode |
+| `botProfiles` | easy / normal / hard | Bot profile parameters (`reactionDelayTicks`, `aimNoiseRad`, `steerGain`, `aggression`) |
+| `playerColors` | 16 hex colours | Car colours assigned by slot order |
+| `carDamageShaderEnabled` | true | Enables the car damage filter (section 8.1) |
+| `carDamageMaxStrength` | 0.85 | Shader strength at full damage (0..1) |
+| `carDamageSmoothingRate` | 4 | Damage smoothing rate per second |
+| `carDamageScratchCount` | 6 | Number of damage marks per car (scratches, cracks, grime dots) drawn on the car body (section 8.1) |
+| `carDamageMarkRamp` | 0.35 | Damage span over which each mark fades from 0 to full alpha (section 8.1) |
+| `groundSpeckleCount` | 900 | Static asphalt speckle dots on the arena floor, fixed in world space (section 8.1) |
+| `groundPatchCount` | 14 | Slightly lighter or darker asphalt tiles on the floor (section 8.1) |
+| `groundLaneDashLength` | 120 | Length of each painted lane dash in world units (section 8.1) |
+| `groundLaneDashGap` | 80 | Gap between lane dashes in world units (section 8.1) |
+| `groundCurbWidth` | 16 | Width of the dark curb strip along the inner wall edges (section 8.1) |
 
 ---
 
 ## 10. Game modes
 
 ### 10.1 Solo vs CPU
-- Host = local device. Human count = 1. Bots = 1–7 (default 3).
+- Host = local device. Human count = 1. Bots = 1–12 (default 3).
 - Difficulty: Easy / Normal (default) / Hard (bot profile).
 - No network is used. No room code.
 
@@ -229,9 +291,9 @@ Quality toggles in Settings: `Effects: full | reduced`, `Tire marks: on | off`. 
 - Start requires at least 2 human cars.
 
 ### 10.3 Mixed
-- 1–4 humans plus bots, total cars ≤ 8.
+- 1–4 humans plus bots, total cars ≤ 16.
 - Start requires at least 1 human and at least 2 cars total.
-- Host can set bot count in lobby (0–7 minus humans).
+- Host can set bot count in lobby (0–12).
 
 ### 10.4 Lobby rules
 - Host creates room → 6-character code and QR code shown.
