@@ -9,8 +9,6 @@ export interface GroundArena {
 export interface GroundLayoutConfig {
   readonly groundSpeckleCount: number;
   readonly groundPatchCount: number;
-  readonly groundLaneDashLength: number;
-  readonly groundLaneDashGap: number;
   readonly groundCurbWidth: number;
 }
 
@@ -28,17 +26,9 @@ export interface GroundRect {
   readonly tone: "light" | "dark";
 }
 
-export interface GroundDash {
-  readonly x1: number;
-  readonly y1: number;
-  readonly x2: number;
-  readonly y2: number;
-}
-
 export interface GroundLayout {
   readonly speckles: readonly GroundPoint[];
   readonly patches: readonly GroundRect[];
-  readonly laneDashes: readonly GroundDash[];
   readonly curbs: readonly GroundRect[];
 }
 
@@ -88,23 +78,6 @@ export function generateGroundLayout(
     });
   }
 
-  const centreY = arena.height / 2;
-  const centreX = arena.width / 2;
-  const laneDashes = [
-    ...dashedLine(
-      inner.left,
-      inner.right,
-      (from, to) => ({ x1: from, y1: centreY, x2: to, y2: centreY }),
-      config,
-    ),
-    ...dashedLine(
-      inner.top,
-      inner.bottom,
-      (from, to) => ({ x1: centreX, y1: from, x2: centreX, y2: to }),
-      config,
-    ),
-  ];
-
   const curbWidth = config.groundCurbWidth;
   const curbs: GroundRect[] = [
     {
@@ -137,21 +110,5 @@ export function generateGroundLayout(
     },
   ];
 
-  return { speckles, patches, laneDashes, curbs };
-}
-
-function dashedLine(
-  from: number,
-  to: number,
-  toDash: (start: number, end: number) => GroundDash,
-  config: GroundLayoutConfig,
-): GroundDash[] {
-  const dashes: GroundDash[] = [];
-  const period = config.groundLaneDashLength + config.groundLaneDashGap;
-  if (period <= 0 || config.groundLaneDashLength <= 0) return dashes;
-  for (let start = from; start < to; start += period) {
-    const end = Math.min(start + config.groundLaneDashLength, to);
-    dashes.push(toDash(start, end));
-  }
-  return dashes;
+  return { speckles, patches, curbs };
 }

@@ -46,9 +46,6 @@ const SPECKLE_LIGHT_COLOR = 0x5a5e66;
 const SPECKLE_DARK_COLOR = 0x2a2d32;
 const SPECKLE_ALPHA = 0.7;
 const SPECKLE_SIZE = 3;
-const LANE_COLOR = 0xe8e2c4;
-const LANE_ALPHA = 0.55;
-const LANE_HALF_WIDTH = 3;
 const WALL_COLOR = 0x1a1c20;
 const CURB_COLOR = 0x2c2f35;
 const CURB_EDGE_COLOR = 0x8a8f99;
@@ -202,17 +199,6 @@ function drawArena(layer: Container, arena: ArenaView): void {
       alpha: SPECKLE_ALPHA,
     });
   }
-  const lanes = new Graphics();
-  for (const dash of layout.laneDashes) {
-    lanes
-      .rect(
-        Math.min(dash.x1, dash.x2) - LANE_HALF_WIDTH,
-        Math.min(dash.y1, dash.y2) - LANE_HALF_WIDTH,
-        Math.abs(dash.x2 - dash.x1) + LANE_HALF_WIDTH * 2,
-        Math.abs(dash.y2 - dash.y1) + LANE_HALF_WIDTH * 2,
-      )
-      .fill({ color: LANE_COLOR, alpha: LANE_ALPHA });
-  }
   const walls = new Graphics();
   const t = arena.wallThickness;
   walls.rect(0, 0, arena.width, t).fill(WALL_COLOR);
@@ -238,7 +224,7 @@ function drawArena(layer: Container, arena: ArenaView): void {
       .fill({ color, alpha: 0.15 })
       .stroke({ width: 4, color, alpha: 0.8 });
   }
-  layer.addChild(floor, speckles, lanes, walls, bases);
+  layer.addChild(floor, speckles, walls, bases);
 }
 
 function createBillPool(layer: Container): BillSlot[] {

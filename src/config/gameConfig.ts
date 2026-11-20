@@ -100,8 +100,6 @@ export interface GameConfigShape {
   readonly carDamageMarkRamp: number;
   readonly groundSpeckleCount: number;
   readonly groundPatchCount: number;
-  readonly groundLaneDashLength: number;
-  readonly groundLaneDashGap: number;
   readonly groundCurbWidth: number;
   readonly audioEnabled: boolean;
   readonly audioMasterVolume: number;
@@ -260,8 +258,6 @@ export const gameConfig = {
   carDamageMarkRamp: 0.35,
   groundSpeckleCount: 900,
   groundPatchCount: 14,
-  groundLaneDashLength: 120,
-  groundLaneDashGap: 80,
   groundCurbWidth: 16,
   audioEnabled: true,
   audioMasterVolume: 0.6,
