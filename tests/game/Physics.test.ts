@@ -45,6 +45,17 @@ describe("PhysicsWorld", () => {
     world.dispose();
   });
 
+  it("reaches arcade speed quickly under full throttle", () => {
+    const world = createWorld();
+    world.addCar(1, 600, 800, 0);
+    for (let i = 0; i < 60; i += 1) {
+      world.applyControl(1, FULL, false);
+      world.step();
+    }
+    expect(world.getCar(1)?.speed ?? 0).toBeGreaterThan(330);
+    world.dispose();
+  });
+
   it("does not spin while stationary and steers once moving", () => {
     const world = createWorld();
     world.addCar(1, 600, 800, 0);

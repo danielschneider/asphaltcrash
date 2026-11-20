@@ -66,13 +66,13 @@ Bills are visible to all players. Pickup and delivery are determined by the host
 ### 4.2 Physics feel (targets, verified only on device)
 | Parameter | Initial value |
 |-----------|---------------|
-| Max forward speed | 280 px/s |
+| Max forward speed | 360 px/s |
 | Max reverse speed | 120 px/s |
-| Acceleration | 300 px/s² |
-| Braking | 600 px/s² |
-| Lateral grip | 0.9 (fraction of sideways velocity removed per second) |
-| Air friction | 0.02 |
-| Boost | +160 px/s on top of max speed, duration 0.6 s, cooldown 2 s |
+| Acceleration | 650 px/s² |
+| Braking | 800 px/s² |
+| Lateral grip | 1.0 (fraction of sideways velocity removed per second) |
+| Air friction | 0.015 |
+| Boost | +200 px/s on top of max speed, duration 0.6 s, cooldown 2 s |
 | Max collision impulse considered | capped to avoid tunneling |
 
 Lateral grip creates the "car, not box" feel. Lower grip = more drift. Tuning is a P1 task.
@@ -263,15 +263,15 @@ Implemented with the browser Web Audio API only (no audio library). Pure math li
 | `baseHeight` | 120 | Home Base height in px |
 | `humanSpawns` | 4 points (x, y, angle) | Human spawn points, angle in rad toward arena centre |
 | `botSpawns` | 12 points (x, y, angle) | Bot spawn points, angle in rad toward arena centre |
-| `maxForwardSpeed` | 280 | Max forward speed in px/s (section 4.2) |
+| `maxForwardSpeed` | 360 | Max forward speed in px/s (section 4.2) |
 | `maxReverseSpeed` | 120 | Max reverse speed in px/s (section 4.2) |
-| `acceleration` | 300 | Acceleration in px/s² (section 4.2) |
-| `braking` | 600 | Braking in px/s² (section 4.2) |
-| `lateralGrip` | 0.9 | Lateral grip fraction removed per second (section 4.2) |
-| `airFriction` | 0.02 | Air friction (section 4.2) |
-| `boostSpeedBonus` | 160 | Boost speed bonus in px/s (section 4.2) |
-| `steerRateRadPerSec` | 2.6 | Full-lock steer rate at full engagement in rad/s |
-| `steerSpeedPenalty` | 0.5 | Steer reduction at top speed (section 4.1) |
+| `acceleration` | 650 | Acceleration in px/s² (section 4.2) |
+| `braking` | 800 | Braking in px/s² (section 4.2) |
+| `lateralGrip` | 1.0 | Lateral grip fraction removed per second (section 4.2) |
+| `airFriction` | 0.015 | Air friction (section 4.2) |
+| `boostSpeedBonus` | 200 | Boost speed bonus in px/s (section 4.2) |
+| `steerRateRadPerSec` | 3.4 | Full-lock steer rate at full engagement in rad/s |
+| `steerSpeedPenalty` | 0.4 | Steer reduction at top speed (section 4.1) |
 | `steerFullEngagementSpeedFraction` | 0.25 | Speed fraction at which full steering response is reached (section 4.1) |
 | `joystickRadiusPx` | 72 | Virtual joystick radius in px (section 4.1) |
 | `joystickDeadZone` | 0.12 | Joystick dead zone fraction (section 4.1) |
