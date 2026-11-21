@@ -1,5 +1,6 @@
 import Matter from "matter-js";
 import { gameConfig } from "../config/gameConfig";
+import { wallFrontImpact } from "./Rules";
 import { MS_PER_SECOND } from "./sim/time";
 import { aimDrive, slideAim, type AimDrive } from "./sim/aimDrive";
 
@@ -10,6 +11,7 @@ export interface PhysicsContact {
   readonly billId: number | null;
   readonly impulse: number;
   readonly rammerPid: number | null;
+  readonly frontImpact: number | null;
 }
 
 export interface CarBodyState {
@@ -432,8 +434,12 @@ export class PhysicsWorld {
           billId: null,
           impulse: impulseOf(pair, preVelocities, gameConfig.carMass / 2),
           rammerPid: rammerOf(pair, preVelocities, first.pid, second.pid),
+          frontImpact: null,
         };
-      case "wall":
+      case "wall": {
+        const carBody = first.kind === "car" ? pair.bodyA : pair.bodyB;
+        const wallBody = first.kind === "wall" ? pair.bodyA : pair.bodyB;
+        const wallNormal = wallToCarNormal(pair, wallBody, carBody);
         return {
           kind: "car-wall",
           aPid: car.pid,
@@ -441,7 +447,9 @@ export class PhysicsWorld {
           billId: null,
           impulse: impulseOf(pair, preVelocities, gameConfig.carMass),
           rammerPid: null,
+          frontImpact: wallFrontImpact(carBody.angle, wallNormal),
         };
+      }
       case "bill":
         return {
           kind: "car-bill",
@@ -450,6 +458,7 @@ export class PhysicsWorld {
           billId: other.billId,
           impulse: 0,
           rammerPid: null,
+          frontImpact: null,
         };
       case "base":
         return {
@@ -459,6 +468,7 @@ export class PhysicsWorld {
           billId: null,
           impulse: 0,
           rammerPid: null,
+          frontImpact: null,
         };
     }
   }

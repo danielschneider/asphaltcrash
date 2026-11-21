@@ -89,7 +89,7 @@ Forward and reverse speed caps limit powered motion; they do not truncate existi
 - Damage is based on **collision impulse** magnitude, not on speed alone.
 - `damage = clamp((impulse - impulseThreshold) * damageFactor, 0, maxDamagePerHit)`
 - Initial values: `impulseThreshold = 0.8`, `damageFactor = 9`, `maxDamagePerHit = 40`.
-- Wall hits use the same formula with the wall as "attacker" but no attacker bonus.
+- Wall hits use the same impulse formula with the wall as "attacker" but no attacker bonus. Damage is multiplied by the squared front-facing impact component: a head-on front hit keeps full damage, while a side or rear hit deals only 10%.
 - Car-car hits: the **rammer** (the car whose pre-step velocity has the larger component along the contact normal toward the other car) takes `damage * rammerDamageShare` (0.25), the victim takes full `damage`.
 - Each car pair has a **contact cooldown of 300 ms** so one continuous scrape does not deal damage every frame.
 - Car health: 100 HP.
@@ -217,6 +217,7 @@ Implemented with the browser Web Audio API only (no audio library). Pure math li
 | `rammerDamageShare` | 0.25 | Share of damage the rammer takes in car-car hits (section 5.1) |
 | `damageThresholdImpulse` | 0.8 | |
 | `damageFactor` | 9 | |
+| `wallSideDamageMultiplier` | 0.1 | Minimum wall damage multiplier for side/rear impacts; frontal impact damage is unchanged. |
 | `contactCooldownMs` | 300 | |
 | `attributionWindowSeconds` | 1 | |
 | `cargoCapacity` | 5 | |

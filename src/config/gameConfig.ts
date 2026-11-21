@@ -29,6 +29,7 @@ export interface GameConfigShape {
   readonly rammerDamageShare: number;
   readonly damageThresholdImpulse: number;
   readonly damageFactor: number;
+  readonly wallSideDamageMultiplier: number;
   readonly contactCooldownMs: number;
   readonly attributionWindowSeconds: number;
   readonly cargoCapacity: number;
@@ -148,6 +149,7 @@ export const gameConfig = {
   rammerDamageShare: 0.25,
   damageThresholdImpulse: 0.8,
   damageFactor: 9,
+  wallSideDamageMultiplier: 0.1,
   contactCooldownMs: 300,
   attributionWindowSeconds: 1,
   cargoCapacity: 5,

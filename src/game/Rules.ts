@@ -25,6 +25,21 @@ export function applyDamage(impulse: number, config: DamageConfig): number {
   return Math.min(Math.max(raw, 0), config.maxDamagePerHit);
 }
 
+export function wallFrontImpact(
+  angle: number,
+  wallToCarNormal: { readonly x: number; readonly y: number },
+): number {
+  const frontTowardWall =
+    -Math.cos(angle) * wallToCarNormal.x - Math.sin(angle) * wallToCarNormal.y;
+  return Math.min(1, Math.max(0, frontTowardWall));
+}
+
+export function wallDamageMultiplier(frontImpact: number): number {
+  const front = Math.min(1, Math.max(0, frontImpact));
+  const sideMultiplier = gameConfig.wallSideDamageMultiplier;
+  return sideMultiplier + (1 - sideMultiplier) * front * front;
+}
+
 export function isContactOnCooldown(
   lastContactTick: number | undefined,
   nowTick: number,

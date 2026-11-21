@@ -25,6 +25,7 @@ import {
   isContactOnCooldown,
   nextSpawnTick,
   ticksFromMs,
+  wallDamageMultiplier,
   type DamageConfig,
 } from "../Rules";
 import { BillSpawner, type BaseRect } from "./BillSpawner";
@@ -309,7 +310,12 @@ export class MatchSimulation {
   ): void {
     for (const contact of contacts) {
       if (contact.kind === "car-wall") {
-        this.damageFromWall(contact.aPid, contact.impulse, tick);
+        this.damageFromWall(
+          contact.aPid,
+          contact.impulse,
+          contact.frontImpact ?? 0,
+          tick,
+        );
         continue;
       }
       if (
@@ -329,10 +335,16 @@ export class MatchSimulation {
     }
   }
 
-  private damageFromWall(pid: number, impulse: number, tick: number): void {
+  private damageFromWall(
+    pid: number,
+    impulse: number,
+    frontImpact: number,
+    tick: number,
+  ): void {
     const key = `${pid}:wall`;
     if (isContactOnCooldown(this.contactTicks.get(key), tick)) return;
-    const damage = applyDamage(impulse, DAMAGE_CONFIG);
+    const damage =
+      applyDamage(impulse, DAMAGE_CONFIG) * wallDamageMultiplier(frontImpact);
     if (damage <= 0) return;
     this.contactTicks.set(key, tick);
     this.applyHit(pid, null, damage, impulse, tick);

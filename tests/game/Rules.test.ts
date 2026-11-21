@@ -9,6 +9,8 @@ import {
   isWithinAttribution,
   nextSpawnTick,
   ticksFromMs,
+  wallDamageMultiplier,
+  wallFrontImpact,
 } from "../../src/game/Rules";
 
 const damageConfig = {
@@ -41,6 +43,21 @@ describe("applyDamage", () => {
     expect(applyDamage(-5, damageConfig)).toBe(0);
     expect(applyDamage(Number.NaN, damageConfig)).toBe(0);
     expect(applyDamage(Number.POSITIVE_INFINITY, damageConfig)).toBe(0);
+  });
+});
+
+describe("wall damage direction", () => {
+  it("scales damage fully at the front and cheaply at the side or rear", () => {
+    expect(wallDamageMultiplier(1)).toBe(1);
+    expect(wallDamageMultiplier(0)).toBe(gameConfig.wallSideDamageMultiplier);
+    expect(wallDamageMultiplier(-1)).toBe(gameConfig.wallSideDamageMultiplier);
+  });
+
+  it("recognizes front, side and rear contacts from the wall normal", () => {
+    const rightWallToCar = { x: -1, y: 0 };
+    expect(wallFrontImpact(0, rightWallToCar)).toBe(1);
+    expect(wallFrontImpact(Math.PI / 2, rightWallToCar)).toBeCloseTo(0, 10);
+    expect(wallFrontImpact(Math.PI, rightWallToCar)).toBe(0);
   });
 });
 
