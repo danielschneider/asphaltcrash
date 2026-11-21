@@ -59,6 +59,7 @@ const FIXED_STEP_HZ = gameConfig.fixedStepHz;
 const STEP_MS = MS_PER_SECOND / FIXED_STEP_HZ;
 // Matter applies force as dv = F/m * deltaMs^2 with deltaMs in ms. Converting to px/s^2 gives F = m * a / MS_PER_SECOND^2.
 const FORCE_PER_ACCEL = 1 / (MS_PER_SECOND * MS_PER_SECOND);
+const LATERAL_RETENTION = Math.exp(-gameConfig.lateralGrip / FIXED_STEP_HZ);
 const NO_PID = -1;
 const NO_DRIVE: AimDrive = { steer: 0, throttle: 0 };
 const CATEGORY = { car: 0x0001, wall: 0x0002, sensor: 0x0004 } as const;
@@ -175,9 +176,7 @@ export class PhysicsWorld {
     const forwardCap =
       gameConfig.maxForwardSpeed +
       (boostActive ? gameConfig.boostSpeedBonus : 0);
-    // lateralGrip is the fraction removed per second; per fixed step it is lateralGrip / 60 of the sideways speed.
-    const lateral =
-      dot(body.velocity, side) * (1 - gameConfig.lateralGrip / FIXED_STEP_HZ);
+    const lateral = dot(body.velocity, side) * LATERAL_RETENTION;
     const forwardPxs = clamp(
       dot(body.velocity, heading) * FIXED_STEP_HZ,
       -gameConfig.maxReverseSpeed,

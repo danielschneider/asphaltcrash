@@ -214,7 +214,7 @@ export const gameConfig = {
   maxReverseSpeed: 120,
   acceleration: 650,
   braking: 800,
-  lateralGrip: 1.0,
+  lateralGrip: 0.25,
   airFriction: 0.015,
   carFriction: 0.05,
   carRestitution: 0.35,

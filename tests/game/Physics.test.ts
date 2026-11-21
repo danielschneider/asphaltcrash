@@ -56,6 +56,38 @@ describe("PhysicsWorld", () => {
     world.dispose();
   });
 
+  it("slides sideways when steering through a fast turn", () => {
+    const world = createWorld();
+    world.addCar(1, 1000, 1200, 0);
+    for (let i = 0; i < 60; i += 1) {
+      world.applyControl(1, FULL, false);
+      world.step();
+    }
+
+    for (let i = 0; i < 30; i += 1) {
+      const car = world.getCar(1);
+      if (!car) throw new Error("car missing");
+      const aimAngle = car.angle + 0.45;
+      world.applyControl(
+        1,
+        { aimX: Math.cos(aimAngle), aimY: Math.sin(aimAngle), boost: false },
+        false,
+      );
+      world.step();
+    }
+
+    const car = world.getCar(1);
+    if (!car) throw new Error("car missing");
+    const forwardSpeed =
+      Math.cos(car.angle) * car.vx + Math.sin(car.angle) * car.vy;
+    const lateralSpeed =
+      -Math.sin(car.angle) * car.vx + Math.cos(car.angle) * car.vy;
+    expect(car.speed).toBeGreaterThan(100);
+    expect(Math.abs(lateralSpeed) / car.speed).toBeGreaterThan(0.5);
+    expect(forwardSpeed).toBeGreaterThan(0);
+    world.dispose();
+  });
+
   it("pivots in place toward the aim direction while stationary", () => {
     const world = createWorld();
     world.addCar(1, 600, 800, 0);
