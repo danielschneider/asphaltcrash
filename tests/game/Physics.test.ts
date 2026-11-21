@@ -99,6 +99,26 @@ describe("PhysicsWorld", () => {
     world.dispose();
   });
 
+  it("turns toward and drives in a rapidly reversed aim direction", () => {
+    const world = createWorld();
+    world.addCar(1, 1200, 1200, 0);
+    for (let i = 0; i < 60; i += 1) {
+      world.applyControl(1, FULL, false);
+      world.step();
+    }
+
+    const opposite = { aimX: -1, aimY: 0, boost: false } as const;
+    for (let i = 0; i < 240; i += 1) {
+      world.applyControl(1, opposite, false);
+      world.step();
+    }
+
+    const car = world.getCar(1);
+    expect(Math.cos(car?.angle ?? NaN)).toBeLessThan(-0.8);
+    expect(car?.vx ?? 0).toBeLessThan(0);
+    world.dispose();
+  });
+
   it("loses speed on impact with the right wall and stays inside it", () => {
     const world = createWorld();
     const wallInnerEdge = gameConfig.arenaWidth;

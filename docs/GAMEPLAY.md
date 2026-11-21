@@ -63,6 +63,7 @@ Bills are visible to all players. Pickup and delivery are determined by the host
 - The stick sends an absolute aim vector (`aimX`, `aimY`, unit circle), not steer and throttle. Pushing up always means "face up and drive up", regardless of the car's current heading.
 - Aim is turned into steer and throttle on the host (`src/game/sim/aimDrive.ts`). Steer is the heading error divided by `aimTurnFullAngleRad`. Throttle is applied only when the heading error is within `aimDriveAngleRad`, and the magnitude of the stick sets the throttle.
 - A car that is misaligned and moving forward brakes. A stationary car pivots in place at `aimPivotRateRadPerSec`.
+- Steering always turns the car toward the world-space aim, even if its momentum temporarily points opposite its heading during a sharp direction change.
 - Steering response ramps from pivot rate at rest to the rolling rate at full engagement (25 % of max forward speed), then is reduced at high speed (`steerScale = 1 - 0.5 * speedFraction`).
 
 ### 4.2 Physics feel (targets, verified only on device)

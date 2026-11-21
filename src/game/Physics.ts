@@ -196,7 +196,7 @@ export class PhysicsWorld {
     );
 
     const drive = this.driveFor(body, control, forwardPxs, normals);
-    this.applySteer(body, drive.steer, forwardPxs);
+    this.applySteer(body, drive.steer);
     this.applyThrottle(
       body,
       heading,
@@ -327,11 +327,7 @@ export class PhysicsWorld {
     return NO_PID;
   }
 
-  private applySteer(
-    body: Matter.Body,
-    steer: number,
-    forwardPxs: number,
-  ): void {
+  private applySteer(body: Matter.Body, steer: number): void {
     if (steer === 0) {
       Matter.Body.setAngularVelocity(body, 0);
       return;
@@ -348,13 +344,12 @@ export class PhysicsWorld {
       1,
     );
     const steerScale = 1 - gameConfig.steerSpeedPenalty * speedFraction;
-    const direction = forwardPxs < 0 ? -1 : 1;
     const rollingRate =
       gameConfig.steerRateRadPerSec * steerEngagement * steerScale;
     const pivotRate = gameConfig.aimPivotRateRadPerSec * (1 - steerEngagement);
     Matter.Body.setAngularVelocity(
       body,
-      (steer * direction * (rollingRate + pivotRate)) / FIXED_STEP_HZ,
+      (steer * (rollingRate + pivotRate)) / FIXED_STEP_HZ,
     );
   }
 
