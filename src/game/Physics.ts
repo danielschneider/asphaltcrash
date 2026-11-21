@@ -177,8 +177,10 @@ export class PhysicsWorld {
       gameConfig.maxForwardSpeed +
       (boostActive ? gameConfig.boostSpeedBonus : 0);
     const lateral = dot(body.velocity, side) * LATERAL_RETENTION;
+    // Speed limits constrain powered motion; clipping here would erase momentum when the car rotates through its velocity.
+    const rawForwardPxs = dot(body.velocity, heading) * FIXED_STEP_HZ;
     const forwardPxs = clamp(
-      dot(body.velocity, heading) * FIXED_STEP_HZ,
+      rawForwardPxs,
       -gameConfig.maxReverseSpeed,
       forwardCap,
     );
@@ -187,8 +189,8 @@ export class PhysicsWorld {
       body,
       reflectOffWalls(
         {
-          x: heading.x * (forwardPxs / FIXED_STEP_HZ) + side.x * lateral,
-          y: heading.y * (forwardPxs / FIXED_STEP_HZ) + side.y * lateral,
+          x: heading.x * (rawForwardPxs / FIXED_STEP_HZ) + side.x * lateral,
+          y: heading.y * (rawForwardPxs / FIXED_STEP_HZ) + side.y * lateral,
         },
         normals,
       ),

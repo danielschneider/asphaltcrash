@@ -88,6 +88,31 @@ describe("PhysicsWorld", () => {
     world.dispose();
   });
 
+  it("retains momentum through an abrupt 180-degree reversal", () => {
+    const world = createWorld();
+    world.addCar(1, 1200, 1200, 0);
+    for (let i = 0; i < 60; i += 1) {
+      world.applyControl(1, FULL, false);
+      world.step();
+    }
+
+    for (let i = 0; i < 60; i += 1) {
+      world.applyControl(1, { aimX: -1, aimY: 0, boost: false }, false);
+      world.step();
+    }
+    const car = world.getCar(1);
+    if (!car) throw new Error("car missing");
+    const forwardSpeed =
+      Math.cos(car.angle) * car.vx + Math.sin(car.angle) * car.vy;
+    const lateralSpeed =
+      -Math.sin(car.angle) * car.vx + Math.cos(car.angle) * car.vy;
+    expect(car.angle).toBeLessThan(-Math.PI / 2);
+    expect(car.speed).toBeGreaterThan(190);
+    expect(forwardSpeed).toBeLessThan(-gameConfig.maxReverseSpeed);
+    expect(Math.abs(lateralSpeed) / car.speed).toBeGreaterThan(0.6);
+    world.dispose();
+  });
+
   it("pivots in place toward the aim direction while stationary", () => {
     const world = createWorld();
     world.addCar(1, 600, 800, 0);

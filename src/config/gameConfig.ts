@@ -213,9 +213,10 @@ export const gameConfig = {
   maxForwardSpeed: 360,
   maxReverseSpeed: 120,
   acceleration: 650,
-  braking: 800,
+  braking: 100,
   lateralGrip: 0.25,
-  airFriction: 0.015,
+  // Matter applies airFriction on every fixed step; a low value retains momentum through turns.
+  airFriction: 0.0025,
   carFriction: 0.05,
   carRestitution: 0.35,
   wallFriction: 0.1,

@@ -72,13 +72,14 @@ Bills are visible to all players. Pickup and delivery are determined by the host
 | Max forward speed | 360 px/s |
 | Max reverse speed | 120 px/s |
 | Acceleration | 650 px/s² |
-| Braking | 800 px/s² |
+| Braking | 100 px/s² |
 | Lateral grip | 0.25 (sideways velocity damping per second; lower values create more drift) |
-| Air friction | 0.015 |
+| Air friction | 0.0025 (Matter damping coefficient applied each fixed step) |
 | Boost | +200 px/s on top of max speed, duration 0.6 s, cooldown 2 s |
 | Max collision impulse considered | capped to avoid tunneling |
 
 Lateral grip creates the "car, not box" feel. Lower grip = more drift. Tuning is a P1 task.
+Forward and reverse speed caps limit powered motion; they do not truncate existing momentum during a turn.
 
 ---
 
@@ -269,9 +270,9 @@ Implemented with the browser Web Audio API only (no audio library). Pure math li
 | `maxForwardSpeed` | 360 | Max forward speed in px/s (section 4.2) |
 | `maxReverseSpeed` | 120 | Max reverse speed in px/s (section 4.2) |
 | `acceleration` | 650 | Acceleration in px/s² (section 4.2) |
-| `braking` | 800 | Braking in px/s² (section 4.2) |
+| `braking` | 100 | Braking in px/s² (section 4.2) |
 | `lateralGrip` | 0.25 | Lateral velocity damping per second (section 4.2) |
-| `airFriction` | 0.015 | Air friction (section 4.2) |
+| `airFriction` | 0.0025 | Matter air-damping coefficient per fixed step (section 4.2) |
 | `boostSpeedBonus` | 200 | Boost speed bonus in px/s (section 4.2) |
 | `steerRateRadPerSec` | 3.4 | Full-lock steer rate at full engagement in rad/s |
 | `steerSpeedPenalty` | 0.4 | Steer reduction at top speed (section 4.1) |
