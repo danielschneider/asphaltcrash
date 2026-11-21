@@ -1,6 +1,6 @@
 # AsphaltCrash
 
-Top-down 2D multiplayer vehicle combat and cash-collection arena game designed for tablet browsers, hosted statically on GitHub Pages.
+Top-down 2D multiplayer vehicle combat arena game with Cash Run and Crashfest modes, designed for tablet browsers and hosted statically on GitHub Pages.
 
 ## 1. Game Concept & Core Loop
 - **Genre:** Top-Down Arena Car Combat / Arcade (inspired by *GTA 1* camera perspective and *Destruction Derby* physics).
@@ -8,6 +8,7 @@ Top-down 2D multiplayer vehicle combat and cash-collection arena game designed f
 - **Gameplay Mechanics:**
   - **Vehicle Combat & Physics:** Players steer cars around an enclosed arena, ramming opponents and obstacles to inflict and receive structural damage.
   - **Objective (Cash Collection):** Cash bills spawn dynamically in the arena. Players collect bills on contact and deliver them to their designated **Home Base** (a rectangular drop-off zone positioned near their spawn/joystick area) to score.
+  - **Crashfest:** An untimed last-car-standing derby in a 1600 × 1200 arena. There are no bases, bills, or respawns; the last surviving car wins.
 - **Camera & Visuals:**
   - **Perspective:** Top-down 2D view. The arena may exceed the viewport dimensions, requiring smooth dynamic camera panning and zooming.
   - **Art Style:** Clean, modern 2D vector/sprite graphics (explicitly **not** pixel art) enhanced with dynamic particle effects (e.g., exhaust smoke, collision sparks).

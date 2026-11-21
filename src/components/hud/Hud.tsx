@@ -34,12 +34,21 @@ export function Hud() {
 
   return (
     <div className="hud">
-      <TimerBadge remainingMs={snapshot.remainingMs} />
+      <TimerBadge
+        remainingMs={snapshot.remainingMs}
+        gameMode={snapshot.gameMode}
+      />
       <div className="hud-panel">
-        <span>Cash {formatCash(snapshot.score)}</span>
-        <span>
-          Cargo {snapshot.cargo}/{gameConfig.cargoCapacity}
-        </span>
+        {snapshot.gameMode === "crashfest" ? (
+          <span>Kills {snapshot.score}</span>
+        ) : (
+          <>
+            <span>Cash {formatCash(snapshot.score)}</span>
+            <span>
+              Cargo {snapshot.cargo}/{gameConfig.cargoCapacity}
+            </span>
+          </>
+        )}
         <span>
           HP {snapshot.hp}/{gameConfig.maxHealth}
         </span>

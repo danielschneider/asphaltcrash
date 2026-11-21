@@ -6,16 +6,18 @@ Open decisions reference `ANALYSIS.md` section 7 (Q-xx).
 ---
 
 ## 1. Match overview
-- Arena: enclosed rectangle, walls on all sides, optional interior static obstacles (none in v1 except walls and bases).
+- Modes: **Cash Run** (timed cash collection) and **Crashfest** (untimed last-car-standing derby).
+- Cash Run arena: enclosed rectangle, walls on all sides, optional interior static obstacles (none in v1 except walls and bases).
 - Players: 1–4 humans, 0–12 bots, total cars ≤ 16.
-- Each car has a **Home Base** (rectangle) placed next to its spawn point.
-- Cash bills spawn in the arena. Players collect bills by driving over them and deliver them to their own Home Base.
-- Cars fight by ramming. Damage reduces health. Destroyed cars drop their cargo and respawn.
-- Match ends when the timer reaches zero (Q-03 recommended default: 180 s). Highest score wins. Ties share the win.
+- In Cash Run, each car has a **Home Base** (rectangle) placed next to its spawn point.
+- In Cash Run, bills spawn in the arena. Players collect them by driving over them and deliver them to their own Home Base.
+- In Cash Run, cars fight by ramming; destroyed cars drop their cargo and respawn.
+- Cash Run ends when the timer reaches zero (Q-03 recommended default: 180 s). Highest score wins. Ties share the win.
+- Crashfest uses a separate 1600 × 1200 px arena, has no timer, bases or bills, and eliminates cars permanently. The last surviving car wins; simultaneous elimination is a draw.
 
 ---
 
-## 2. Win condition and scoring (Q-03 proposed)
+## 2. Win condition and scoring (Cash Run, Q-03 proposed)
 
 | Rule | Value |
 |------|-------|
@@ -30,7 +32,7 @@ Score values are integers. Cash is shown as currency units (`$`).
 
 ---
 
-## 3. Cash bills
+## 3. Cash bills (Cash Run)
 
 | Property | Value |
 |----------|-------|
@@ -100,12 +102,16 @@ Forward and reverse speed caps limit powered motion; they do not truncate existi
 - If no other car hit in the last 1 s, destruction is credited to nobody (wall death).
 
 ### 5.3 Destruction and respawn
+Cash Run uses the following destruction and respawn rules:
+
 | Step | Value |
 |------|-------|
 | Destroyed | car stops, invulnerable 0 ms, cargo dropped |
 | Respawn delay | 3 s |
 | Respawn location | the car's spawn point. If occupied by a car within 80 px, the nearest free point along the arena is used. |
 | Respawn state | 100 HP, empty cargo, invulnerable 2 s (visual blink) |
+
+Crashfest cars do not respawn. A destroyed car remains out for the rest of the match; the match ends when one or zero cars remain alive. In Crashfest, the scoreboard counts attributed kills rather than cash.
 
 ### 5.4 Hit feedback
 - Impulse above `hitEventThreshold` (0.5) → `hit` event → spark effect at contact point and short camera shake (≤ 4 px, 150 ms).
@@ -115,6 +121,8 @@ Forward and reverse speed caps limit powered motion; they do not truncate existi
 ---
 
 ## 6. Arena
+
+Cash Run uses the arena below:
 
 | Property | Value |
 |----------|-------|
@@ -126,6 +134,8 @@ Forward and reverse speed caps limit powered motion; they do not truncate existi
 | Arena layout | Single fixed layout in v1, seed only varies bill positions and bot names. |
 
 Arena size and spawn layout are authored constants, not procedural. Procedural maps are out of scope for v1.
+
+Crashfest uses a 1600 × 1200 px arena. Its spawn positions are scaled from the authored Cash Run layout; no Home Bases are created or drawn.
 
 ---
 
@@ -144,7 +154,7 @@ Arena size and spawn layout are authored constants, not procedural. Procedural m
 | Timer | top center | 10 Hz |
 | Score and cargo | top left | 10 Hz |
 | Health bar (own car) | bottom right above action button | 10 Hz |
-| Scoreboard (all cars) | top right, collapsible | 10 Hz |
+| Scoreboard (all cars) | top right, collapsible and scrollable within a viewport-bounded panel | 10 Hz |
 | Attack feed | top, below timer | on event |
 | Ping indicator | top right corner, debug or multiplayer only | 1 Hz |
 | Connection banner | full width, top | on state change |
@@ -256,6 +266,8 @@ Implemented with the browser Web Audio API only (no audio library). Pure math li
 | `cameraZoomOutLerp` | 10 | Camera zoom-out (widen view) smoothing rate per second, section 7.1 |
 | `arenaWidth` | 3200 | Arena width in world units (px) |
 | `arenaHeight` | 2400 | Arena height in world units (px) |
+| `crashfestArenaWidth` | 1600 | Crashfest arena width in world units (px) |
+| `crashfestArenaHeight` | 1200 | Crashfest arena height in world units (px) |
 | `wallThickness` | 40 | Static wall thickness in px |
 | `wallFriction` | 0.1 | Wall body friction |
 | `wallRestitution` | 0.45 | Wall body restitution (bounciness); also used for the wall deflection of car velocity |
@@ -329,9 +341,16 @@ Implemented with the browser Web Audio API only (no audio library). Pure math li
 - Start requires at least 1 human and at least 2 cars total.
 - Host can set bot count in lobby (0–12).
 
-### 10.4 Lobby rules
+### 10.4 Crashfest
+- Available in solo vs CPU and multiplayer; starts with at least two cars.
+- Uses the 1600 × 1200 px arena, with no bills or Home Bases.
+- Destruction is permanent. No respawn, match timer, or cash scoring.
+- Each attributed kill counts as one kill on the scoreboard. The last surviving car wins; zero survivors is a draw.
+- Bots actively attack surviving opponents.
+
+### 10.5 Lobby rules
 - Host creates room → 6-character code and QR code shown.
-- Host sets CPU players in multiplayer (range 0..12, default 0); total cars (humans + CPU) must stay ≤ 16.
+- Host selects the game mode and sets CPU players in multiplayer (range 0..12, default 0); total cars (humans + CPU) must stay ≤ 16.
 - Clients join by typing code or scanning QR.
   - Each player picks a name (≤ 16 chars). If left empty, a name is generated as "<Adjective>-<Animal>-<NN>" (e.g. "Awesome-Squirrel-42"), where NN is a two-digit number 10..99; if that exceeds 16 chars the shorter form "<Animal>-<NN>" (e.g. "Squirrel-42") is used; a refresh button next to the name field generates a new name; the host assigns a generated unique name when a client sends an invalid one. Colors are assigned by slot order (no picker in v1).
 - Host can kick a player (v1 optional, P4).
@@ -362,3 +381,5 @@ Implemented with the browser Web Audio API only (no audio library). Pure math li
 | G-07 | Mixed mode: 2 humans + 2 bots works and bots fill their slots. |
 | G-08 | A client on mobile data can complete a match, or the join fails with a clear message. |
 | G-09 | Portrait orientation shows the "rotate device" hint and pauses the match. |
+| G-10 | Crashfest has no bases, bills, timer, or respawns; one survivor wins and simultaneous elimination is a draw. |
+| G-11 | Crashfest works in solo and multiplayer, using a 1600 × 1200 px arena. |

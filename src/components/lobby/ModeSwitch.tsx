@@ -37,7 +37,7 @@ export function ModeSwitch({ mode, onChange }: ModeSwitchProps) {
       aria-labelledby={groupLabelId}
     >
       <span id={groupLabelId} className="visually-hidden">
-        Game mode
+        Play type
       </span>
       {MODE_OPTIONS.map((option) => {
         const isChecked = option.mode === mode;

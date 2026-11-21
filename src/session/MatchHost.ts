@@ -18,6 +18,7 @@ import type { Transport } from "../network/transport/Transport";
 import type {
   ArenaView,
   BotDifficulty,
+  GameMode,
   MatchSetup,
   MatchSnapshot,
 } from "../types/game";
@@ -45,17 +46,19 @@ export interface MatchHostDeps {
   readonly botPids: readonly number[];
   readonly botDifficulty: BotDifficulty;
   readonly matchSeconds: number;
+  readonly gameMode: GameMode;
   readonly pidForPeer: (peerId: PeerId) => number | undefined;
   readonly peerIdForPid: (pid: number) => PeerId | undefined;
   readonly hostInput: () => InputFrame;
-  readonly onFinished?: (scores: readonly ScoreItem[]) => void;
+  readonly onFinished?: (
+    scores: readonly ScoreItem[],
+    winners: readonly number[],
+  ) => void;
 }
 
 const HOST_PID = 0;
 const STEP_MS = 1000 / gameConfig.fixedStepHz;
 const STEP_EPSILON_MS = 1e-6;
-// The sim keeps no per-player cash/kill/delivery counters, only a score; the end row uses score as cash and delivered, kills = 0.
-const END_KILLS = 0;
 
 export class MatchHost {
   private readonly deps: MatchHostDeps;
@@ -81,6 +84,7 @@ export class MatchHost {
       humanPlayerIds: deps.humanPids,
       botPlayerIds: deps.botPids,
       botDifficulty: deps.botDifficulty,
+      gameMode: deps.gameMode,
       matchSeconds: deps.matchSeconds,
     };
     this.clientPids = deps.humanPids.filter((pid) => pid !== HOST_PID);
@@ -95,6 +99,10 @@ export class MatchHost {
 
   get arena(): ArenaView {
     return this.sim.arena;
+  }
+
+  get gameMode(): GameMode {
+    return this.sim.gameMode;
   }
 
   snapshot(): MatchSnapshot {
@@ -198,7 +206,11 @@ export class MatchHost {
         `[mp][host] tick=${tick} cars=${this.sim.snapshot().cars.length} snapsSent=${this.snapsSent}`,
       );
     }
-    if (timerRemainingMs(tick, this.setup.matchSeconds) === 0) {
+    if (
+      this.sim.isFinished ||
+      (this.setup.gameMode !== "crashfest" &&
+        timerRemainingMs(tick, this.setup.matchSeconds) === 0)
+    ) {
       this.finish();
     }
   }
@@ -235,7 +247,7 @@ export class MatchHost {
     for (const pid of this.clientPids) {
       this.sendToPid(pid, end, "reliable");
     }
-    this.deps.onFinished?.(end.scores);
+    this.deps.onFinished?.(end.scores, end.winners);
   }
 
   private buildEnd(): EndMessage {
@@ -245,13 +257,15 @@ export class MatchHost {
       v: PROTOCOL_VERSION,
       t: "end",
       mid: this.matchId,
-      scores: snapshot.cars.map((car): ScoreItem => [
-        car.pid,
-        car.score,
-        END_KILLS,
-        car.score,
-      ]),
-      winners: resolveWinners(scores),
+      scores: snapshot.cars.map((car): ScoreItem =>
+        this.sim.gameMode === "crashfest"
+          ? [car.pid, 0, car.score, 0]
+          : [car.pid, car.score, 0, car.score],
+      ),
+      winners:
+        this.sim.gameMode === "crashfest"
+          ? [...this.sim.winnerPids]
+          : resolveWinners(scores),
     };
   }
 }

@@ -5,6 +5,7 @@ import { buildStart } from "../../../src/network/match/startMessage";
 import type { MatchSetup } from "../../../src/types/game";
 
 const SETUP: MatchSetup = {
+  gameMode: "cash",
   seed: 42,
   humanPlayerIds: [0, 1],
   botPlayerIds: [],

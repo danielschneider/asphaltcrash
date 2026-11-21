@@ -115,10 +115,12 @@ export class MatchClient {
     const { mid, spawns, cfg } = parsed.value;
     const pids = spawns.map(([pid]) => pid);
     const humanCount = typeof cfg.humanCount === "number" ? cfg.humanCount : 0;
+    const gameMode = cfg.gameMode === "crashfest" ? "crashfest" : "cash";
     this.matchId = mid;
     this.arena = buildArenaView(
       pids.slice(0, humanCount),
       pids.slice(humanCount),
+      gameMode,
     );
     this.deps.transport.send(makeReady(mid), "reliable");
     console.log(`[mp][client] ready sent cars=${pids.length}`);

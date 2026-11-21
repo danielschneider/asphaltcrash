@@ -12,6 +12,7 @@ import { createHudStore } from "../../src/store/hudStore";
 import type { WorldRenderer } from "../../src/game/Renderer";
 
 const SOLO = {
+  gameMode: "cash" as const,
   botCount: 1,
   botDifficulty: "easy" as const,
   matchSeconds: 180,
@@ -50,6 +51,8 @@ describe("SessionController solo flow", () => {
     await controller.startSolo(SOLO, {} as HTMLElement);
     hud.push({
       remainingMs: 0,
+      gameMode: "cash",
+      winnerPids: null,
       score: 0,
       cargo: 0,
       hp: 0,

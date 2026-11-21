@@ -12,6 +12,7 @@ import {
 import { validateReady } from "../../../src/network/protocol/validate";
 
 const SETUP = {
+  gameMode: "cash" as const,
   seed: 1234,
   humanPlayerIds: [0, 1],
   botPlayerIds: [],
@@ -28,6 +29,23 @@ describe("startMessage", () => {
     expect(parsed.value.mid).toBe(3);
     expect(parsed.value.seed).toBe(1234);
     expect(parsed.value.spawns.map((s) => s[0])).toEqual([0, 1]);
+  });
+
+  it("includes the selected game mode in the match start", () => {
+    const msg = buildStart({ ...SETUP, gameMode: "crashfest" }, 3);
+    const parsed = parseStart(JSON.parse(JSON.stringify(msg)));
+    expect(parsed.ok).toBe(true);
+    if (!parsed.ok) return;
+    expect(parsed.value.cfg.gameMode).toBe("crashfest");
+    expect(parsed.value.spawns[0]?.slice(0, 3)).toEqual([0, 150, 150]);
+  });
+
+  it("rejects an unknown game mode", () => {
+    const raw = {
+      ...buildStart(SETUP, 1),
+      cfg: { ...buildStart(SETUP, 1).cfg, gameMode: "unknown" },
+    };
+    expect(parseStart(raw).ok).toBe(false);
   });
 
   it("rejects seed -1", () => {

@@ -1,5 +1,10 @@
 import { gameConfig } from "../../config/gameConfig";
-import { BILL_VALUES, type BillValue } from "../../types/game";
+import {
+  BILL_VALUES,
+  GAME_MODES,
+  type BillValue,
+  type GameMode,
+} from "../../types/game";
 import {
   EVENT_KINDS,
   MESSAGE_TYPES,
@@ -76,6 +81,10 @@ function isBoundedNumber(raw: unknown, limit: number): raw is number {
 
 function isBillValue(raw: unknown): raw is BillValue {
   return BILL_VALUES.some((value) => value === raw);
+}
+
+function isGameMode(raw: unknown): raw is GameMode {
+  return GAME_MODES.some((mode) => mode === raw);
 }
 
 function isEventKind(raw: unknown): raw is EventMessage["k"] {
@@ -602,6 +611,10 @@ export function validateStart(raw: unknown): ParseResult<StartMessage> {
   if (!cfg.ok) {
     return cfg;
   }
+  const gameMode = cfg.value.gameMode ?? "cash";
+  if (!isGameMode(gameMode)) {
+    return fail("field:gameMode");
+  }
   const matchSeconds = cfg.value.matchSeconds;
   if (
     typeof matchSeconds !== "number" ||
@@ -627,7 +640,7 @@ export function validateStart(raw: unknown): ParseResult<StartMessage> {
       t: "start",
       mid: raw.mid,
       seed: raw.seed,
-      cfg: cfg.value,
+      cfg: { ...cfg.value, gameMode },
       spawns: spawns.value,
     },
   };

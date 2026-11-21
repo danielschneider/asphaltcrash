@@ -31,6 +31,7 @@ Source of requirements: `README.md` plus the additional requirements stated by t
 | O-04 | CPU mode when no other players are available. | Bot cars controlled by the game, usable in solo mode. |
 | O-05 | Combination of humans and CPU players is possible. | Bots fill free slots in multiplayer matches. Human count and bot count are independent. |
 | O-06 | Detailed solution-space analysis, detailed architecture, MD documents, AGENTS.md. | Delivered as the files under `docs/` and `AGENTS.md`. |
+| O-07 | Crashfest is a small-arena last-car-standing derby with permanent eliminations and no cash collection or bases. | Available in solo and multiplayer; 1600 × 1200 px, untimed, simultaneous elimination is a draw. |
 
 ### 1.3 Conflicts and ambiguities found in the inputs (must be resolved)
 | # | Source | Conflict | Resolution used in this analysis |
@@ -216,11 +217,10 @@ Multi-touch works on iPad Safari. Touch handling uses Pointer Events with `setPo
 | D14 | 45 s reconnect window with token |
 
 Modes supported by this combination:
-- **Solo vs CPU:** host = local device, 0 remote peers, N bots.
-- **Multiplayer 2–4 humans:** host + up to 3 remote peers, bots optional to fill slots.
-- **Mixed:** any number of humans from 1 to 4 plus bots up to the total car cap (8).
+- **Cash Run:** solo vs CPU, multiplayer or mixed; timed cash collection with respawns.
+- **Crashfest:** solo vs CPU, multiplayer or mixed; smaller untimed derby with permanent eliminations.
+- Each mode uses the same host-authoritative simulation; only the transport differs (`LocalTransport` or `PeerTransport`).
 
-All three modes use the same simulation code. Only the transport differs (`LocalTransport` or `PeerTransport`).
 
 ---
 

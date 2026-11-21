@@ -47,6 +47,7 @@ describe("MatchScreen", () => {
         options={{
           botCount: 1,
           botDifficulty: "easy",
+          gameMode: "cash",
           matchSeconds: 180,
           seed: 1,
         }}

@@ -1,3 +1,5 @@
+import type { GameMode } from "../types/game";
+
 export interface HudScore {
   readonly pid: number;
   readonly score: number;
@@ -5,6 +7,8 @@ export interface HudScore {
 
 export interface HudSnapshot {
   readonly remainingMs: number;
+  readonly gameMode: GameMode;
+  readonly winnerPids: readonly number[] | null;
   readonly score: number;
   readonly cargo: number;
   readonly hp: number;
@@ -24,6 +28,8 @@ export interface HudStore extends HudSink {
 
 const EMPTY_HUD: HudSnapshot = {
   remainingMs: 0,
+  gameMode: "cash",
+  winnerPids: null,
   score: 0,
   cargo: 0,
   hp: 0,

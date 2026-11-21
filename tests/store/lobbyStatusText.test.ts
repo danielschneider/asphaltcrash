@@ -11,6 +11,7 @@ const BASE: LobbySnapshot = {
   pid: 1,
   players: [],
   bots: 0,
+  gameMode: "cash",
   error: null,
 };
 

@@ -14,8 +14,9 @@ export function scoreDelivery(
 export function scoreKill(
   scores: Map<number, number>,
   attackerPid: number,
+  points: number = gameConfig.killBonus,
 ): void {
-  scoreDelivery(scores, attackerPid, gameConfig.killBonus);
+  scoreDelivery(scores, attackerPid, points);
 }
 
 export function timerRemainingMs(tick: number, matchSeconds: number): number {

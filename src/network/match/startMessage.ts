@@ -1,4 +1,4 @@
-import { gameConfig } from "../../config/gameConfig";
+import { spawnFor } from "../../config/spawnPoints";
 import type { MatchSetup } from "../../types/game";
 import {
   PROTOCOL_VERSION,
@@ -8,16 +8,12 @@ import {
 } from "../protocol/messages";
 import { validateStart, type ParseResult } from "../protocol/validate";
 
-const SPAWN_POOL = [...gameConfig.humanSpawns, ...gameConfig.botSpawns];
-
-function spawnItemsFor(pids: readonly number[]): SpawnItem[] {
+function spawnItemsFor(setup: MatchSetup): SpawnItem[] {
+  const pids = [...setup.humanPlayerIds, ...setup.botPlayerIds];
   return [...pids]
     .sort((a, b) => a - b)
     .map((pid): SpawnItem => {
-      const spawn = SPAWN_POOL[pid];
-      if (spawn === undefined) {
-        throw new Error(`startMessage: no spawn for player ${pid}`);
-      }
+      const spawn = spawnFor(pid, setup.gameMode);
       return [pid, spawn.x, spawn.y, spawn.angle];
     });
 }
@@ -32,8 +28,9 @@ export function buildStart(setup: MatchSetup, matchId: number): StartMessage {
       matchSeconds: setup.matchSeconds,
       botDifficulty: setup.botDifficulty,
       humanCount: setup.humanPlayerIds.length,
+      gameMode: setup.gameMode,
     },
-    spawns: spawnItemsFor([...setup.humanPlayerIds, ...setup.botPlayerIds]),
+    spawns: spawnItemsFor(setup),
   };
 }
 

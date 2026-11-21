@@ -1,15 +1,17 @@
 import { gameConfig } from "../../config/gameConfig";
+import { spawnFor } from "../../config/spawnPoints";
 import {
   type ArenaView,
   type BaseView,
   type BillSnapshot,
   type CarSnapshot,
+  type GameMode,
   type MatchSetup,
   type MatchSnapshot,
   type SimEvent,
   type SimEvents,
 } from "../../types/game";
-import { buildArenaView, spawnFor } from "../arena";
+import { buildArenaView } from "../arena";
 import { BotController, type BotPerception } from "../bots/BotController";
 import { NEUTRAL_INPUT, type InputFrame } from "../input/InputFrame";
 import {
@@ -61,6 +63,11 @@ const DAMAGE_CONFIG: DamageConfig = {
 
 export interface MatchTestHook {
   readonly placeCar: (pid: number, x: number, y: number, angle: number) => void;
+  readonly setHealth: (
+    pid: number,
+    health: number,
+    attackerPid?: number,
+  ) => void;
 }
 
 const testHooks = new WeakMap<MatchSimulation, MatchTestHook>();
@@ -121,11 +128,23 @@ export class MatchSimulation {
   private currentTick = 0;
   private nextBillIdValue = 1;
   private lastSpawnTick = 0;
+  private finished = false;
+  private winners: readonly number[] = [];
 
   constructor(setup: MatchSetup) {
     validatePids(setup);
+    if (
+      setup.gameMode === "crashfest" &&
+      setup.humanPlayerIds.length + setup.botPlayerIds.length < 2
+    ) {
+      throw new Error("MatchSimulation: crashfest requires at least two cars");
+    }
     this.setup = setup;
-    this.arenaView = buildArenaView(setup.humanPlayerIds, setup.botPlayerIds);
+    this.arenaView = buildArenaView(
+      setup.humanPlayerIds,
+      setup.botPlayerIds,
+      setup.gameMode,
+    );
     this.pids = [...setup.humanPlayerIds, ...setup.botPlayerIds].sort(
       (a, b) => a - b,
     );
@@ -136,7 +155,7 @@ export class MatchSimulation {
       this.arenaView.bases.map(toSpawnRect),
     );
     for (const pid of this.pids) {
-      const spawn = spawnFor(pid);
+      const spawn = spawnFor(pid, setup.gameMode);
       this.cars.set(pid, createCarState(pid, gameConfig.maxHealth));
       this.scores.set(pid, 0);
       this.physics.addCar(pid, spawn.x, spawn.y, spawn.angle);
@@ -147,6 +166,17 @@ export class MatchSimulation {
     }
     testHooks.set(this, {
       placeCar: (pid, x, y, angle) => this.placeCarInternal(pid, x, y, angle),
+      setHealth: (pid, health, attackerPid) => {
+        const car = this.carOf(pid);
+        car.hp = health;
+        if (attackerPid !== undefined) {
+          recordHit(
+            car,
+            { attackerPid, tick: this.currentTick, impulse: 1 },
+            this.currentTick,
+          );
+        }
+      },
     });
   }
 
@@ -156,6 +186,18 @@ export class MatchSimulation {
 
   get arena(): ArenaView {
     return this.arenaView;
+  }
+
+  get gameMode(): GameMode {
+    return this.setup.gameMode;
+  }
+
+  get isFinished(): boolean {
+    return this.finished;
+  }
+
+  get winnerPids(): readonly number[] {
+    return this.winners;
   }
 
   setInput(playerId: number, input: InputFrame): void {
@@ -168,6 +210,7 @@ export class MatchSimulation {
   }
 
   step(): SimEvents {
+    if (this.finished) return [];
     const tick = this.currentTick;
     const events: SimEvent[] = [];
     this.decideBots();
@@ -177,6 +220,7 @@ export class MatchSimulation {
     this.resolveDestruction(tick, events);
     this.resolveRespawns(tick, events);
     this.resolveCarContacts(contacts, events);
+    this.resolveCrashfestEnd();
     this.spawnNewBill(tick, events);
     this.emitTimer(tick, events);
     this.currentTick += 1;
@@ -186,10 +230,10 @@ export class MatchSimulation {
   snapshot(): MatchSnapshot {
     return {
       tick: this.currentTick,
-      timeRemainingMs: timerRemainingMs(
-        this.currentTick,
-        this.setup.matchSeconds,
-      ),
+      timeRemainingMs:
+        this.setup.gameMode === "crashfest"
+          ? 0
+          : timerRemainingMs(this.currentTick, this.setup.matchSeconds),
       cars: this.pids.map((pid) => this.carSnapshot(pid)),
       bills: this.sortedBills().map((bill) => ({ ...bill })),
     };
@@ -272,10 +316,14 @@ export class MatchSimulation {
         baseX: base?.x ?? body.x,
         baseY: base?.y ?? body.y,
       },
+      gameMode: this.setup.gameMode,
       bills: this.sortedBills(),
       enemies,
       tick: this.currentTick,
-      fallback: { x: gameConfig.arenaWidth / 2, y: gameConfig.arenaHeight / 2 },
+      fallback: {
+        x: this.arenaView.width / 2,
+        y: this.arenaView.height / 2,
+      },
     };
   }
 
@@ -405,7 +453,8 @@ export class MatchSimulation {
   private destroyCar(car: CarState, tick: number, events: SimEvent[]): void {
     const { pid } = car;
     car.destroyed = true;
-    car.respawnTick = nextSpawnTick(tick);
+    car.respawnTick =
+      this.setup.gameMode === "crashfest" ? 0 : nextSpawnTick(tick);
     car.boostTicksLeft = 0;
     car.boosting = false;
     car.throttle = 0;
@@ -424,15 +473,20 @@ export class MatchSimulation {
     const attackerPid = attributeKill(car.hits, pid, tick);
     car.hits = [];
     if (attackerPid === null) return;
-    scoreKill(this.scores, attackerPid);
+    scoreKill(
+      this.scores,
+      attackerPid,
+      this.setup.gameMode === "crashfest" ? 1 : undefined,
+    );
     events.push({ k: "kill", attackerPid, victimPid: pid });
   }
 
   private resolveRespawns(tick: number, events: SimEvent[]): void {
+    if (this.setup.gameMode === "crashfest") return;
     for (const pid of this.pids) {
       const car = this.carOf(pid);
       if (!car.destroyed || tick < car.respawnTick) continue;
-      const spawn = spawnFor(pid);
+      const spawn = spawnFor(pid, this.setup.gameMode);
       this.physics.teleportCar(pid, spawn.x, spawn.y, spawn.angle);
       this.physics.setCarFrozen(pid, false);
       car.destroyed = false;
@@ -488,6 +542,7 @@ export class MatchSimulation {
   }
 
   private spawnNewBill(tick: number, events: SimEvent[]): void {
+    if (this.setup.gameMode === "crashfest") return;
     const spawned = this.spawner.maybeSpawn(
       tick,
       this.bills.size,
@@ -500,12 +555,21 @@ export class MatchSimulation {
   }
 
   private emitTimer(tick: number, events: SimEvent[]): void {
+    if (this.setup.gameMode === "crashfest") return;
     const { matchSeconds } = this.setup;
     const prev = timerRemainingMs(tick, matchSeconds);
     const now = timerRemainingMs(tick + 1, matchSeconds);
     for (const seconds of timerEventsCrossed(prev, now)) {
       events.push({ k: "timer", remainingMs: secondsToMs(seconds) });
     }
+  }
+
+  private resolveCrashfestEnd(): void {
+    if (this.setup.gameMode !== "crashfest") return;
+    const survivors = this.pids.filter((pid) => !this.carOf(pid).destroyed);
+    if (survivors.length > 1) return;
+    this.finished = true;
+    this.winners = survivors;
   }
 
   private carSnapshot(pid: number): CarSnapshot {
@@ -519,7 +583,7 @@ export class MatchSimulation {
       vx: body.vx,
       vy: body.vy,
       hp: car.hp,
-      flags: carFlags(car),
+      flags: carFlags(car, this.setup.gameMode),
       cargo: car.carried.length,
       score: this.scores.get(pid) ?? 0,
     };

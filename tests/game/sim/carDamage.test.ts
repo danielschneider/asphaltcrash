@@ -5,6 +5,7 @@ import { placeCarForTest } from "../../../src/game/sim/testing";
 import type { MatchSetup, MatchSnapshot } from "../../../src/types/game";
 
 const SETUP: MatchSetup = {
+  gameMode: "cash",
   seed: 7,
   humanPlayerIds: [0, 1],
   botPlayerIds: [],

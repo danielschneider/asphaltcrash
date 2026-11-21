@@ -2,6 +2,7 @@ import { useId, useState, type ChangeEvent } from "react";
 import { gameConfig } from "../../config/gameConfig";
 import { useLobby } from "../../hooks/useLobby";
 import { sessionController } from "../../session/SessionController";
+import { GAME_MODES } from "../../types/game";
 import {
   MAX_LOBBY_BOTS,
   MIN_LOBBY_BOTS,
@@ -41,6 +42,7 @@ function describeStatus(snapshot: LobbySnapshot): string {
 export function LobbyScreen() {
   const snapshot = useLobby();
   const botCountId = useId();
+  const gameModeId = useId();
   const [copyState, setCopyState] = useState<CopyState>("idle");
 
   const handleBack = (): void => {
@@ -67,6 +69,16 @@ export function LobbyScreen() {
     sessionController.setLobbyBotCount(Number(event.target.value));
   };
 
+  const handleGameModeChange = (
+    event: ChangeEvent<HTMLSelectElement>,
+  ): void => {
+    const gameMode = GAME_MODES.find(
+      (candidate) => candidate === event.target.value,
+    );
+    if (gameMode === undefined) return;
+    sessionController.setLobbyGameMode(gameMode);
+  };
+
   const waitingText = lobbyStatusText(snapshot);
   const roster = rosterWithBots(snapshot.players, snapshot.bots);
   const isHost = snapshot.role === "host";
@@ -74,7 +86,7 @@ export function LobbyScreen() {
   const canStart = isHost && total >= MIN_START_CARS;
 
   return (
-    <div className="start-screen">
+    <div className="start-screen lobby-screen">
       <h1 className="start-title">AsphaltCrash</h1>
       <p className="lobby-subtitle">Lobby</p>
       <div className="start-form">
@@ -104,21 +116,41 @@ export function LobbyScreen() {
           ))}
         </ul>
         {isHost ? (
-          <div className="start-field">
-            <label htmlFor={botCountId}>Bots: {snapshot.bots}</label>
-            <input
-              id={botCountId}
-              type="range"
-              min={MIN_LOBBY_BOTS}
-              max={MAX_LOBBY_BOTS}
-              step={1}
-              value={snapshot.bots}
-              onChange={handleBotCountChange}
-            />
-            <p className="lobby-bots-total">
-              {`Total cars: ${total} / ${gameConfig.maxCars}`}
-            </p>
-          </div>
+          <>
+            <div className="start-field">
+              <label htmlFor={gameModeId}>Game mode</label>
+              <select
+                id={gameModeId}
+                className="start-select"
+                value={snapshot.gameMode}
+                onChange={handleGameModeChange}
+              >
+                {GAME_MODES.map((option) => (
+                  <option key={option} value={option}>
+                    {option === "cash" ? "Cash run" : "Crashfest"}
+                  </option>
+                ))}
+              </select>
+              {snapshot.gameMode === "crashfest" ? (
+                <p>No timer, cash, bases, or respawns. Last car wins.</p>
+              ) : null}
+            </div>
+            <div className="start-field">
+              <label htmlFor={botCountId}>Bots: {snapshot.bots}</label>
+              <input
+                id={botCountId}
+                type="range"
+                min={MIN_LOBBY_BOTS}
+                max={MAX_LOBBY_BOTS}
+                step={1}
+                value={snapshot.bots}
+                onChange={handleBotCountChange}
+              />
+              <p className="lobby-bots-total">
+                {`Total cars: ${total} / ${gameConfig.maxCars}`}
+              </p>
+            </div>
+          </>
         ) : null}
         {waitingText !== null ? (
           <p role="status" className="lobby-waiting">

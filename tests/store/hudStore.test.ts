@@ -3,6 +3,8 @@ import { createHudStore, type HudSnapshot } from "../../src/store/hudStore";
 
 const SAMPLE: HudSnapshot = {
   remainingMs: 1000,
+  gameMode: "cash",
+  winnerPids: null,
   score: 5,
   cargo: 2,
   hp: 80,

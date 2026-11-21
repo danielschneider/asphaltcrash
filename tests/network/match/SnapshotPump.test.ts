@@ -35,6 +35,7 @@ describe("SnapshotPump", () => {
 
   it("builds from a real simulation", () => {
     const sim = new MatchSimulation({
+      gameMode: "cash",
       seed: 7,
       humanPlayerIds: [0, 1],
       botPlayerIds: [],

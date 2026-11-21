@@ -29,7 +29,7 @@ describe("StartScreen", () => {
       screen.getByRole("radio", SINGLE_PLAYER).getAttribute("aria-checked"),
     ).toBe("true");
     expect(screen.getByRole("slider")).toBeTruthy();
-    expect(screen.getByRole("combobox")).toBeTruthy();
+    expect(screen.getByLabelText("Difficulty")).toBeTruthy();
     expect(screen.getByRole("button", { name: "Play vs CPU" })).toBeTruthy();
   });
 
@@ -41,7 +41,21 @@ describe("StartScreen", () => {
     expect(onStart.mock.calls[0]?.[0]).toMatchObject({
       botCount: gameConfig.botDefaultCount,
       botDifficulty: "normal",
+      gameMode: "cash",
       matchSeconds: gameConfig.matchSeconds,
+    });
+  });
+
+  it("starts a solo Crashfest match when selected", () => {
+    const onStart = vi.fn();
+    render(<StartScreen onStart={onStart} />);
+    fireEvent.change(screen.getByLabelText("Game mode"), {
+      target: { value: "crashfest" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Play Crashfest" }));
+    expect(onStart.mock.calls[0]?.[0]).toMatchObject({
+      gameMode: "crashfest",
+      botCount: gameConfig.botDefaultCount,
     });
   });
 

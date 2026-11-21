@@ -1,6 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
 import { gameConfig } from "../../src/config/gameConfig";
-import { MatchSimulation } from "../../src/game/sim/MatchSimulation";
+import {
+  getMatchTestHook,
+  MatchSimulation,
+} from "../../src/game/sim/MatchSimulation";
 import type { InputFrame } from "../../src/game/input/InputFrame";
 import type {
   NetworkMessage,
@@ -90,8 +93,12 @@ const SHORT_MATCH_SECONDS = 2;
 interface HarnessOptions {
   readonly humanPids?: readonly number[];
   readonly botPids?: readonly number[];
+  readonly gameMode?: MatchSetup["gameMode"];
   matchSeconds?: number;
-  readonly onFinished?: (scores: readonly ScoreItem[]) => void;
+  readonly onFinished?: (
+    scores: readonly ScoreItem[],
+    winners: readonly number[],
+  ) => void;
 }
 
 function createHarness(options: HarnessOptions = {}) {
@@ -115,6 +122,7 @@ function createHarness(options: HarnessOptions = {}) {
     humanPids: options.humanPids ?? [0, 1],
     botPids: options.botPids ?? [2, 3],
     botDifficulty: "normal",
+    gameMode: options.gameMode ?? "cash",
     matchSeconds: options.matchSeconds ?? SHORT_MATCH_SECONDS,
     pidForPeer: (peerId) => PEER_TO_PID[peerId],
     peerIdForPid: (pid) => PID_TO_PEER[pid],
@@ -244,6 +252,39 @@ describe("MatchHost", () => {
     expect(end?.t === "end" && end.winners.length).toBeGreaterThan(0);
   });
 
+  it("ends Crashfest when one car remains, regardless of the match timer", () => {
+    const { host, transport, clock, sims } = createHarness({
+      humanPids: [0, 1],
+      botPids: [],
+      gameMode: "crashfest",
+      matchSeconds: 1,
+    });
+    host.start();
+    const start = sentOf(transport, "start")[0]?.message;
+    expect(start?.t === "start" && start.cfg.gameMode).toBe("crashfest");
+    host.handleInbound(readyFor(77), CLIENT_PEER);
+    for (let step = 1; step <= gameConfig.fixedStepHz; step += 1) {
+      clock.now = step * STEP_MS;
+      host.tick(clock.now);
+    }
+    expect(host.phase).toBe(MATCH_HOST_PHASE.running);
+
+    const sim = sims[0];
+    if (sim === undefined) throw new Error("simulation missing");
+    const hook = getMatchTestHook(sim);
+    if (hook === undefined) throw new Error("test hook missing");
+    hook.setHealth(1, 0, 0);
+    clock.now += STEP_MS;
+    host.tick(clock.now);
+
+    expect(host.phase).toBe(MATCH_HOST_PHASE.finished);
+    const end = sentOf(transport, "end")[0]?.message;
+    expect(end?.t === "end" && end.winners).toEqual([0]);
+    expect(end?.t === "end" && end.scores[0]?.slice(0, 4)).toEqual([
+      0, 0, 1, 0,
+    ]);
+  });
+
   it("delivers start, snapshots and end only to the target client peer", () => {
     const { host, transport, clock } = createHarness({
       humanPids: [0, 1, 2],
@@ -297,6 +338,7 @@ describe("MatchHost", () => {
     const end = sentOf(transport, "end")[0]?.message;
     expect(onFinished).toHaveBeenCalledWith(
       end?.t === "end" ? end.scores : undefined,
+      end?.t === "end" ? end.winners : undefined,
     );
     const snapsBefore = sentOf(transport, "snap").length;
     clock.now += STEP_MS * 30;

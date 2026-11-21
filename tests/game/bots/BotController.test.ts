@@ -11,6 +11,7 @@ function makeView(
   extra: Partial<BotPerception> = {},
 ): BotPerception {
   return {
+    gameMode: "cash",
     self: {
       x: 1000,
       y: 800,
@@ -38,6 +39,17 @@ function stateAfter(view: BotPerception): string {
 }
 
 describe("BotController state selection", () => {
+  it("attacks any surviving opponent in Crashfest", () => {
+    const view = makeView(
+      { hp: 1 },
+      {
+        gameMode: "crashfest",
+        enemies: [{ pid: 4, x: 2500, y: 1800, hp: 100 }],
+      },
+    );
+    expect(stateAfter(view)).toBe("Attack");
+  });
+
   it("delivers when carrying cash", () => {
     expect(stateAfter(makeView({ cargo: 2 }))).toBe("DeliverCash");
   });

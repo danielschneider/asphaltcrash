@@ -11,6 +11,7 @@ vi.mock("../../src/session/SessionController", () => ({
     createRoom: vi.fn(),
     joinRoom: vi.fn(),
     setLobbyBotCount: vi.fn(),
+    setLobbyGameMode: vi.fn(),
     unlockAudio: vi.fn(),
   },
 }));
@@ -133,5 +134,15 @@ describe("LobbyScreen", () => {
       target: { value: "3" },
     });
     expect(sessionController.setLobbyBotCount).toHaveBeenCalledWith(3);
+  });
+
+  it("forwards the selected game mode to the session controller", () => {
+    render(<LobbyScreen />);
+    fireEvent.change(screen.getByLabelText("Game mode"), {
+      target: { value: "crashfest" },
+    });
+    expect(sessionController.setLobbyGameMode).toHaveBeenCalledWith(
+      "crashfest",
+    );
   });
 });

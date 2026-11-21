@@ -34,7 +34,7 @@ describe("interpolateSnapshot (fixed dt, alpha 0 / 0.5 / 1)", () => {
     expect(out.cars[0]?.x).toBeCloseTo(0, 9);
     expect(out.cars[0]?.angle).toBeCloseTo(0.5, 9);
     expect(out.cars[0]?.hp).toBe(40);
-    expect(out.timeRemainingMs).toBeCloseTo(from.timeRemainingMs, 9);
+    expect(out.timeRemainingMs).toBe(from.timeRemainingMs);
   });
 
   it("alpha 0.5 is the midpoint for positions and angles, discrete fields snap to the later state", () => {

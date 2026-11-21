@@ -1,5 +1,5 @@
 import { gameConfig } from "../../config/gameConfig";
-import type { BotDifficulty } from "../../types/game";
+import type { BotDifficulty, GameMode } from "../../types/game";
 import { clampInputFrame, type InputFrame } from "../input/InputFrame";
 import type { Rng } from "../sim/Rng";
 import { type BotProfile, type BotState, profileFor } from "./BotProfiles";
@@ -30,6 +30,7 @@ export interface BotEnemyView {
 }
 
 export interface BotPerception {
+  readonly gameMode: GameMode;
   readonly self: BotSelfView;
   readonly bills: readonly BotBillView[];
   readonly enemies: readonly BotEnemyView[];
@@ -95,26 +96,37 @@ function nearestTo<T extends Point>(
   return best;
 }
 
-function clampToArena(point: Point): Point {
+function clampToArena(point: Point, gameMode: GameMode): Point {
   const margin = gameConfig.wallThickness + ARENA_MARGIN_PX;
+  const width =
+    gameMode === "crashfest"
+      ? gameConfig.crashfestArenaWidth
+      : gameConfig.arenaWidth;
+  const height =
+    gameMode === "crashfest"
+      ? gameConfig.crashfestArenaHeight
+      : gameConfig.arenaHeight;
   return {
-    x: Math.min(gameConfig.arenaWidth - margin, Math.max(margin, point.x)),
-    y: Math.min(gameConfig.arenaHeight - margin, Math.max(margin, point.y)),
+    x: Math.min(width - margin, Math.max(margin, point.x)),
+    y: Math.min(height - margin, Math.max(margin, point.y)),
   };
 }
 
 // Flee targets past a wall would pin the bot against it, so they are kept inside the arena.
-function pointAwayFrom(self: Point, threat: Point): Point {
+function pointAwayFrom(self: Point, threat: Point, gameMode: GameMode): Point {
   const dx = self.x - threat.x;
   const dy = self.y - threat.y;
   const length = Math.hypot(dx, dy);
   if (length < 1) {
-    return clampToArena({ x: self.x + FLEE_DISTANCE_PX, y: self.y });
+    return clampToArena({ x: self.x + FLEE_DISTANCE_PX, y: self.y }, gameMode);
   }
-  return clampToArena({
-    x: self.x + (dx / length) * FLEE_DISTANCE_PX,
-    y: self.y + (dy / length) * FLEE_DISTANCE_PX,
-  });
+  return clampToArena(
+    {
+      x: self.x + (dx / length) * FLEE_DISTANCE_PX,
+      y: self.y + (dy / length) * FLEE_DISTANCE_PX,
+    },
+    gameMode,
+  );
 }
 
 export class BotController {
@@ -183,6 +195,9 @@ function selectState(view: BotPerception): BotState {
   const { self } = view;
   const maxHp = gameConfig.maxHealth;
   const nearest = nearestTo(self, enemiesAlive(view));
+  if (view.gameMode === "crashfest") {
+    return nearest === undefined ? "SeekBill" : "Attack";
+  }
   const nearestDistance =
     nearest === undefined ? Number.POSITIVE_INFINITY : distance(self, nearest);
   if (self.hp < maxHp * RECOVER_HP_FRACTION) {
@@ -218,7 +233,7 @@ function targetFor(state: BotState, view: BotPerception): Point {
       ) {
         return base;
       }
-      return pointAwayFrom(self, nearestEnemy);
+      return pointAwayFrom(self, nearestEnemy, view.gameMode);
     case "DeliverCash":
       return base;
     case "Attack":
@@ -226,7 +241,7 @@ function targetFor(state: BotState, view: BotPerception): Point {
     case "Evade":
       return nearestEnemy === undefined
         ? base
-        : pointAwayFrom(self, nearestEnemy);
+        : pointAwayFrom(self, nearestEnemy, view.gameMode);
     case "SeekBill":
       return nearestTo(self, view.bills) ?? view.fallback;
   }

@@ -1,37 +1,34 @@
-import { gameConfig, type SpawnPoint } from "../config/gameConfig";
-import type { ArenaView, BaseView } from "../types/game";
-
-const SPAWN_POOL: readonly SpawnPoint[] = [
-  ...gameConfig.humanSpawns,
-  ...gameConfig.botSpawns,
-];
-
-export function spawnFor(pid: number): SpawnPoint {
-  const spawn = SPAWN_POOL[pid];
-  if (spawn === undefined) {
-    throw new Error(`arena: no spawn for player ${pid}`);
-  }
-  return spawn;
-}
+import { gameConfig } from "../config/gameConfig";
+import { spawnFor } from "../config/spawnPoints";
+import type { ArenaView, BaseView, GameMode } from "../types/game";
 
 export function buildArenaView(
   humanPlayerIds: readonly number[],
   botPlayerIds: readonly number[],
+  gameMode: GameMode = "cash",
 ): ArenaView {
   const bases: BaseView[] = [];
-  for (const pid of [...humanPlayerIds, ...botPlayerIds]) {
-    const spawn = spawnFor(pid);
-    bases.push({
-      pid,
-      x: spawn.x,
-      y: spawn.y,
-      width: gameConfig.baseWidth,
-      height: gameConfig.baseHeight,
-    });
+  if (gameMode === "cash") {
+    for (const pid of [...humanPlayerIds, ...botPlayerIds]) {
+      const spawn = spawnFor(pid);
+      bases.push({
+        pid,
+        x: spawn.x,
+        y: spawn.y,
+        width: gameConfig.baseWidth,
+        height: gameConfig.baseHeight,
+      });
+    }
   }
   return {
-    width: gameConfig.arenaWidth,
-    height: gameConfig.arenaHeight,
+    width:
+      gameMode === "crashfest"
+        ? gameConfig.crashfestArenaWidth
+        : gameConfig.arenaWidth,
+    height:
+      gameMode === "crashfest"
+        ? gameConfig.crashfestArenaHeight
+        : gameConfig.arenaHeight,
     wallThickness: gameConfig.wallThickness,
     bases,
   };

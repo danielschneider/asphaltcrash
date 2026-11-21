@@ -59,6 +59,8 @@ export interface GameConfigShape {
   readonly cameraZoomOutLerp: number;
   readonly arenaWidth: number;
   readonly arenaHeight: number;
+  readonly crashfestArenaWidth: number;
+  readonly crashfestArenaHeight: number;
   readonly wallThickness: number;
   readonly carWidth: number;
   readonly carHeight: number;
@@ -180,6 +182,8 @@ export const gameConfig = {
   cameraZoomOutLerp: 10,
   arenaWidth: ARENA_WIDTH,
   arenaHeight: ARENA_HEIGHT,
+  crashfestArenaWidth: 1600,
+  crashfestArenaHeight: 1200,
   wallThickness: 40,
   carWidth: 48,
   carHeight: 24,

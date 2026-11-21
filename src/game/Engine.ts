@@ -23,6 +23,10 @@ export interface EngineDeps {
   readonly inputSources: readonly InputSource[];
   readonly localPlayerId: number;
   readonly hud: HudSink;
+  readonly onFinished?: (
+    snapshot: MatchSnapshot,
+    winnerPids: readonly number[],
+  ) => void;
   readonly audio?: CarAudioSink;
   readonly requestFrame?: (cb: (t: number) => void) => number;
   readonly cancelFrame?: (id: number) => void;
@@ -87,6 +91,8 @@ function buildHud(
   const local = snapshot.cars.find((car) => car.pid === localPlayerId);
   return {
     remainingMs: snapshot.timeRemainingMs,
+    gameMode: "cash",
+    winnerPids: null,
     score: local?.score ?? 0,
     cargo: local?.cargo ?? 0,
     hp: local?.hp ?? 0,
@@ -196,6 +202,7 @@ export class Engine {
     let hudDue = false;
     let steps = 0;
     while (
+      !this.deps.sim.isFinished &&
       this.accumulator + STEP_EPSILON_SECONDS >= STEP_SECONDS &&
       steps < MAX_STEPS_PER_FRAME
     ) {
@@ -216,8 +223,12 @@ export class Engine {
     for (const event of sim.step()) {
       this.recordFeed(event);
     }
-    this.interpolator.push(sim.snapshot());
+    const snapshot = sim.snapshot();
+    this.interpolator.push(snapshot);
     this.stepCount += 1;
+    if (sim.isFinished) {
+      this.deps.onFinished?.(snapshot, sim.winnerPids);
+    }
   }
 
   private recordFeed(event: SimEvent): void {
@@ -238,11 +249,16 @@ export class Engine {
     );
     renderer.update(view, dtSeconds);
     audio?.update(view.cars, localPlayerId, clampAudioDelta(dtSeconds));
-    if (hudDue) this.pushHud(this.interpolator.latest);
+    if (hudDue && !this.deps.sim.isFinished) {
+      this.pushHud(this.interpolator.latest);
+    }
   }
 
   private pushHud(snapshot: MatchSnapshot = this.deps.sim.snapshot()): void {
     const { hud, localPlayerId } = this.deps;
-    hud.push(buildHud(snapshot, localPlayerId, this.feed, this.paused));
+    hud.push({
+      ...buildHud(snapshot, localPlayerId, this.feed, this.paused),
+      gameMode: this.deps.sim.gameMode,
+    });
   }
 }

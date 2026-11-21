@@ -13,7 +13,7 @@ vi.mock("../../src/session/SessionController", () => ({
   },
 }));
 
-const SOLO_CONTROLS = ["slider", "combobox"] as const;
+const SOLO_CONTROLS = ["slider"] as const;
 
 describe("ModeSwitch", () => {
   afterEach(() => {
@@ -55,6 +55,8 @@ describe("StartScreen mode switching", () => {
     for (const role of SOLO_CONTROLS) {
       expect(screen.getByRole(role)).toBeTruthy();
     }
+    expect(screen.getByLabelText("Game mode")).toBeTruthy();
+    expect(screen.getByLabelText("Difficulty")).toBeTruthy();
     expect(screen.getByRole("button", { name: "Play vs CPU" })).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Host room" })).toBeNull();
     expect(screen.queryByLabelText("Name")).toBeNull();
@@ -67,7 +69,8 @@ describe("StartScreen mode switching", () => {
     expect(screen.getByLabelText("Room code")).toBeTruthy();
     expect(screen.getByRole("button", { name: "Join" })).toBeTruthy();
     expect(screen.queryByRole("slider")).toBeNull();
-    expect(screen.queryByRole("combobox")).toBeNull();
+    expect(screen.queryByLabelText("Game mode")).toBeNull();
+    expect(screen.queryByLabelText("Difficulty")).toBeNull();
     expect(screen.queryByRole("button", { name: "Play vs CPU" })).toBeNull();
   });
 

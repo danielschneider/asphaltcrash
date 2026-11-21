@@ -132,6 +132,7 @@ function makeHarness(): Harness {
 function startMessage(): NetworkMessage {
   const raw = buildStart(
     {
+      gameMode: "cash",
       seed: 42,
       humanPlayerIds: [0, 1],
       botPlayerIds: [2],

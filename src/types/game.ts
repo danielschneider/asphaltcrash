@@ -1,6 +1,9 @@
 export const BOT_DIFFICULTIES = ["easy", "normal", "hard"] as const;
 export type BotDifficulty = (typeof BOT_DIFFICULTIES)[number];
 
+export const GAME_MODES = ["cash", "crashfest"] as const;
+export type GameMode = (typeof GAME_MODES)[number];
+
 export const BILL_VALUES = [10, 20, 50] as const;
 export type BillValue = (typeof BILL_VALUES)[number];
 
@@ -144,6 +147,7 @@ export interface WorldView {
 }
 
 export interface MatchSetup {
+  readonly gameMode: GameMode;
   readonly seed: number;
   readonly humanPlayerIds: readonly number[];
   readonly botPlayerIds: readonly number[];

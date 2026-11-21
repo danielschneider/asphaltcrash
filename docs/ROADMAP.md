@@ -150,6 +150,7 @@ Device targets: iPad (current iPadOS, Safari) primary; desktop Chrome for develo
 | Device | Browser | Network | Scenario |
 |--------|---------|---------|----------|
 | iPad (current iPadOS) | Safari | Wi-Fi | Solo CPU 180 s |
+| iPad (current iPadOS) | Safari | Wi-Fi | Solo Crashfest last-car-standing match |
 | iPad | Safari | Mobile data | Join desktop host |
 | iPad | Safari | Wi-Fi | Host, 4 humans |
 | Desktop | Chrome | Wi-Fi | Host, 4 humans (2 tabs) |

@@ -17,11 +17,14 @@ interface RankedScore {
   readonly isWinner: boolean;
 }
 
-function buildRanking(scores: readonly HudScore[]): RankedScore[] {
+function buildRanking(
+  scores: readonly HudScore[],
+  winnerPids: readonly number[] | null,
+): RankedScore[] {
   const scoreMap = new Map<number, number>(
     scores.map((entry) => [entry.pid, entry.score]),
   );
-  const winners = new Set(resolveWinners(scoreMap));
+  const winners = new Set(winnerPids ?? resolveWinners(scoreMap));
   return sortScoresDesc(scores).map((entry) => ({
     pid: entry.pid,
     score: entry.score,
@@ -31,7 +34,7 @@ function buildRanking(scores: readonly HudScore[]): RankedScore[] {
 
 export function ResultScreen({ onBack }: ResultScreenProps) {
   const snapshot = useHud();
-  const ranking = buildRanking(snapshot.scores);
+  const ranking = buildRanking(snapshot.scores, snapshot.winnerPids);
 
   const handleBackToStart = (): void => {
     onBack();
@@ -47,7 +50,11 @@ export function ResultScreen({ onBack }: ResultScreenProps) {
             className={entry.isWinner ? "result-row is-winner" : "result-row"}
           >
             <span>{formatPlayerLabel(entry.pid)}</span>
-            <span>{formatCash(entry.score)}</span>
+            <span>
+              {snapshot.gameMode === "crashfest"
+                ? `${entry.score} kills`
+                : formatCash(entry.score)}
+            </span>
             {entry.isWinner ? (
               <span className="result-badge">Winner</span>
             ) : null}

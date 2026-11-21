@@ -1,3 +1,5 @@
+import type { GameMode } from "../types/game";
+
 export type LobbyRole = "host" | "client" | "none";
 export type LobbyStatus = "idle" | "connecting" | "ready" | "error";
 
@@ -13,6 +15,7 @@ export interface LobbySnapshot {
   readonly pid: number | null;
   readonly players: readonly LobbyPlayer[];
   readonly bots: number;
+  readonly gameMode: GameMode;
   readonly error: string | null;
 }
 
@@ -32,6 +35,7 @@ const EMPTY_LOBBY: LobbySnapshot = {
   pid: null,
   players: [],
   bots: 0,
+  gameMode: "cash",
   error: null,
 };
 

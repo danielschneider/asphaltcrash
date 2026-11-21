@@ -1,4 +1,4 @@
-import { CAR_FLAG, type BillValue } from "../../types/game";
+import { CAR_FLAG, type BillValue, type GameMode } from "../../types/game";
 import { isWithinAttribution, type AttributableHit } from "../Rules";
 
 export interface CarState {
@@ -46,10 +46,11 @@ export function isInvulnerable(car: CarState, tick: number): boolean {
   return tick < car.invulnerableUntilTick;
 }
 
-export function carFlags(car: CarState): number {
+export function carFlags(car: CarState, gameMode: GameMode = "cash"): number {
   let flags = 0;
   if (car.destroyed) {
-    flags |= CAR_FLAG.destroyed | CAR_FLAG.respawning;
+    flags |= CAR_FLAG.destroyed;
+    if (gameMode === "cash") flags |= CAR_FLAG.respawning;
   }
   if (car.boosting) {
     flags |= CAR_FLAG.boosting;

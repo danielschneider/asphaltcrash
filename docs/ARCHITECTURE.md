@@ -8,7 +8,7 @@ Target: Safari on iPadOS (primary), desktop browsers (secondary, for development
 ## 1. Architectural drivers
 1. **Browser-only, static hosting.** No backend code. Everything ships as static files from GitHub Pages over HTTPS.
 2. **iOS Safari limits.** Background suspension, audio gating, viewport quirks, memory and GPU budget, no orientation lock.
-3. **One simulation, three modes.** Solo CPU, multiplayer and mixed use identical game logic.
+3. **One simulation, configurable rules.** Cash Run and Crashfest share the same simulation; solo, multiplayer and mixed rosters use identical game logic.
 4. **Authoritative host.** Exactly one simulation instance decides the truth per match.
 5. **Separation of concerns.** React never touches per-frame data. Simulation never imports React or Pixi.
 6. **Testability.** Simulation, protocol and bots are pure TypeScript with no DOM dependency and run under Vitest in Node.
@@ -218,10 +218,10 @@ Step order (fixed, deterministic within host):
 2. Apply car inputs to Physics (throttle force, steering torque, lateral grip).
 3. Physics step (Matter `Engine.update` with fixed delta).
 4. Consume collision events (`collisionStart`, `collisionActive` impulse sums).
-5. Rules: damage from impulse, car destruction, respawn countdown.
-6. Rules: cash pickup (bill overlap with car sensor), delivery (car inside own home base with cargo).
-7. BillSpawner: spawn bills when below budget and respawn timer elapsed.
-8. Scoring: update timer and win state.
+5. Rules: damage and car destruction. Cash Run respawns destroyed cars; Crashfest permanently eliminates them and ends when one or zero cars remain.
+6. Cash Run rules: cash pickup and delivery to the car's own home base.
+7. Cash Run BillSpawner: spawn bills when below budget and respawn timer elapsed.
+8. Scoring: Cash Run updates timer and score; Crashfest counts attributed kills and ends by elimination.
 9. Emit `SimEvents` (pickup, deliver, destroy, respawn, scoreboard change, end).
 
 Rules are side-effect free functions where possible, which makes them unit-testable without Matter.js: `applyDamage(health, impulse, config)`, `canDeliver(car, base)`, `nextSpawnTime(now, config)`.
@@ -327,7 +327,7 @@ client playing ──disconnect(self, temporary)──► reconnecting(45 s) ─
                                                                      └─timeout──► ended(disconnected)
 ```
 - Network match end: `MatchHost.finish()` sends `end` (reliable) and calls `onFinished(scores)`. The controller stops the host frame loop and the client `MatchClient`, pushes end scores to `hudStore`, and enters `endedNetwork`. `MatchClient` calls `onEnd` on the same path, so clients leave the running state too. The host stops emitting snapshots after finish. Exit from `endedNetwork` tears down via `backToIdle()`.
-- Host lobby: list of human players (max 4) with names and colors, bot count (0 to 4 bots, total cars ≤ 8), start button enabled with at least 1 car (solo) or at least 2 cars (multi). Decision: solo CPU mode allows 1 human + bots; multi requires ≥ 2 humans or 1 human + ≥ 1 bot.
+- Host lobby: list of human players (max 4) with names and colors, game mode, bot count (0 to 4 bots, total cars ≤ 8), start button enabled with at least 1 car (solo) or at least 2 cars (multi). Decision: solo CPU mode allows 1 human + bots; multi requires ≥ 2 humans or 1 human + ≥ 1 bot.
 - Host decides arena seed and spawn order; sends in `start`.
 
 ### 6.10 React UI (L5)
@@ -366,14 +366,14 @@ Joystick → InputBuffer
 
 ## 8. Mode composition
 
-| Mode | Host transport | Clients | Bots | Shadow sim |
-|------|----------------|---------|------|-----------|
-| Solo vs CPU | `LocalTransport` | 0 | 1–7 | Not used (local car is authoritative, no latency) |
-| Multiplayer 2–4 humans | `PeerTransport` (N connections) | 1–3 | 0–(8−humans) | Used on clients |
-| Mixed | `PeerTransport` | 1–3 | fills free slots | Used on clients |
-| Host with humans only, no bots | `PeerTransport` | 1–3 | 0 | Used on clients |
+| Match rules | Roster | Host transport | Clients | Bots | Arena / outcome |
+|--------------|--------|----------------|---------|------|-----------------|
+| Cash Run | Solo vs CPU | `LocalTransport` | 0 | 1–7 | 3200 × 2400; timer and cash score |
+| Cash Run | Multiplayer or mixed | `PeerTransport` | 1–3 | 0–(16−humans) | 3200 × 2400; timer and cash score |
+| Crashfest | Solo vs CPU, multiplayer or mixed | `LocalTransport` or `PeerTransport` | 0–3 | 0–(16−humans) | 1600 × 1200; no bases, bills, timer or respawns; last survivor wins |
 
 Solo mode with a local car: the local car is simulated by the same host instance; no shadow sim is needed because there is no latency.
+The host sends `gameMode` in `start.cfg`; clients use it to create the matching arena and rules.
 
 ---
 
@@ -383,7 +383,7 @@ Solo mode with a local car: the local car is simulated by the same host instance
 |---------|-----------|-------|
 | Viewport height | CSS `height: 100dvh` with `100vh` fallback | `index.html` / global CSS |
 | Safe areas | `env(safe-area-inset-*)` padding on HUD | CSS |
-| Scroll/zoom gestures | `touch-action: none` on game canvas and joystick, `overscroll-behavior: none` on body, `user-scalable=no` in meta (ignored in some iOS settings, so `touch-action` is the real guard) | CSS, `index.html` |
+| Scroll/zoom gestures | `touch-action: none` on game canvas and joystick; lobby content scrolls vertically when it exceeds the viewport; `overscroll-behavior: none` on body; `user-scalable=no` in meta (ignored in some iOS settings, so `touch-action` is the real guard) | CSS, `index.html` |
 | Audio unlock | First tap on Start resumes `AudioContext` | `StartScreen` |
 | Background suspension | `visibilitychange` pauses loop; host broadcasts pause | `Engine.ts`, `SessionController` |
 | Screen sleep | `navigator.wakeLock.request('screen')` if available, released on hide | `session/HostSession.ts` |

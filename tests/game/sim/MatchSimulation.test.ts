@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { gameConfig } from "../../../src/config/gameConfig";
-import { MatchSimulation } from "../../../src/game/sim/MatchSimulation";
+import {
+  getMatchTestHook,
+  MatchSimulation,
+} from "../../../src/game/sim/MatchSimulation";
 import { placeCarForTest } from "../../../src/game/sim/testing";
 import type {
   MatchSetup,
@@ -9,6 +12,7 @@ import type {
 } from "../../../src/types/game";
 
 const BASE_SETUP: MatchSetup = {
+  gameMode: "cash",
   seed: 42,
   humanPlayerIds: [0],
   botPlayerIds: [1, 2, 3],
@@ -138,6 +142,47 @@ describe("MatchSimulation", () => {
           botPlayerIds: [0],
         }),
     ).toThrow();
+  });
+
+  it("runs Crashfest in a small arena without bases, bills, timers, or respawns", () => {
+    const sim = new MatchSimulation({
+      ...BASE_SETUP,
+      gameMode: "crashfest",
+      botPlayerIds: [1],
+    });
+    expect(sim.arena.width).toBe(gameConfig.crashfestArenaWidth);
+    expect(sim.arena.height).toBe(gameConfig.crashfestArenaHeight);
+    expect(sim.arena.bases).toEqual([]);
+    expect(sim.snapshot().timeRemainingMs).toBe(0);
+    expect(sim.snapshot().bills).toEqual([]);
+
+    const hook = getMatchTestHook(sim);
+    if (hook === undefined) throw new Error("test hook missing");
+    hook.setHealth(1, 0, 0);
+    const events = sim.step();
+    expect(sim.isFinished).toBe(true);
+    expect(sim.winnerPids).toEqual([0]);
+    expect(sim.snapshot().cars[1]?.flags).toBe(1);
+    expect(sim.snapshot().cars[0]?.score).toBe(1);
+    expect(events.some((event) => event.k === "kill")).toBe(true);
+    expect(events.some((event) => event.k === "respawn")).toBe(false);
+    expect(sim.step()).toEqual([]);
+  });
+
+  it("resolves simultaneous Crashfest eliminations as a draw", () => {
+    const sim = new MatchSimulation({
+      ...BASE_SETUP,
+      gameMode: "crashfest",
+      humanPlayerIds: [0, 1],
+      botPlayerIds: [],
+    });
+    const hook = getMatchTestHook(sim);
+    if (hook === undefined) throw new Error("test hook missing");
+    hook.setHealth(0, 0);
+    hook.setHealth(1, 0);
+    sim.step();
+    expect(sim.isFinished).toBe(true);
+    expect(sim.winnerPids).toEqual([]);
   });
 
   it("delivers carried cash exactly once on the owner base", () => {

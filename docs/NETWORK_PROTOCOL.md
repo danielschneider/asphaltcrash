@@ -61,11 +61,11 @@ Field names are short to reduce bytes. Documented mapping is normative.
 | `reject` | H→C | `reason`: `version` \| `full` \| `running` \| `invalid` | Host closes connection afterwards. |
 | `lobby` | H→C | `players`: `[pid, name, kind, ready]`, `bots`: int, `cfg`: partial config | Broadcast on change. `kind` = `h` (human) or `b` (bot). |
 | `cfg` | H→C | `cfg`: MatchConfig subset | Included in `lobby`. Separate type reserved for v2. |
-| `start` | H→C | `mid` (matchId), `seed` (uint32), `cfg` (MatchConfig), `spawns`: `[pid, x, y, angle][]`, `bills`: none (generated from seed) | Match begins after all `ready`s or 5 s timeout. |
+| `start` | H→C | `mid` (matchId), `seed` (uint32), `cfg` (MatchConfig, includes `gameMode`: `cash` or `crashfest`), `spawns`: `[pid, x, y, angle][]`, `bills`: none (generated from seed) | `gameMode` defaults to `cash` when absent. Crashfest uses an untimed 1600 × 1200 arena with no bases or bills. Match begins after all `ready`s or 5 s timeout. |
 | `ready` | C→H | `mid` | Client loaded arena. |
 | `pause` | H→C | `on`: bool, `why`: `host` \| `player` | Host paused (host hidden) or a player paused. |
 | `ev` | H→C | `k` (event kind), `d` (payload) | See 4.3. Reliable. |
-| `end` | H→C | `mid`, `scores`: `[pid, cash, kills, delivered][]`, `winners`: `pid[]` | Match finished. |
+| `end` | H→C | `mid`, `scores`: `[pid, cash, kills, delivered][]`, `winners`: `pid[]` | Match finished. Crashfest uses `kills` for its kill count and identifies winners by survival. |
 | `bye` | both | `why` | Graceful leave. |
 | `ping` | C→H | `c` (client ms) | Every 2 s. |
 | `pong` | H→C | `c` (echoed), `h` (host ms) | Used for RTT and offset. |
@@ -77,7 +77,7 @@ Field names are short to reduce bytes. Documented mapping is normative.
 | `t` | Direction | Rate | Fields |
 |-----|-----------|------|--------|
 | `in` | C→H | 30 Hz, plus on button edge | `s` (seq), `ax` (aim X, int −100..100), `ay` (aim Y, int −100..100), `a` (action bool, 0/1) |
-| `snap` | H→C | 20 Hz (every 3rd tick at 60 Hz) | `k` (tick), `ak` (ackSeq of the receiving player's last applied input, 0 for bots/none), `cars`, `bills`, `tm` (match time remaining, ms) |
+| `snap` | H→C | 20 Hz (every 3rd tick at 60 Hz) | `k` (tick), `ak` (ackSeq of the receiving player's last applied input, 0 for bots/none), `cars`, `bills`, `tm` (match time remaining, ms; zero in Crashfest) |
 
 #### 4.2.1 `snap.cars` item
 `[pid, x, y, a, vx, vy, hp, flags, cargo, score]`
@@ -91,9 +91,9 @@ Field names are short to reduce bytes. Documented mapping is normative.
 | 4 | vx | int | px/s rounded |
 | 5 | vy | int | px/s rounded |
 | 6 | hp | int 0–100 | raw |
-| 7 | flags | int bitmask | bit0 = destroyed, bit1 = respawning, bit2 = boosting, bit3 = braking, bit4 = carrying |
+| 7 | flags | int bitmask | bit0 = destroyed, bit1 = respawning (Cash Run only), bit2 = boosting, bit3 = braking, bit4 = carrying |
 | 8 | cargo | int 0–cap | number of bills carried |
-| 9 | score | int | cash total |
+| 9 | score | int | Cash Run: cash total; Crashfest: attributed kill count |
 
 #### 4.2.2 `snap.bills` item
 `[id, x, y, v]` where `id` is int, `x,y` rounded to 1 px, `v` is value (10, 20 or 50). Only bills that are on the field, not carried, are sent. Carried bills are represented by `cargo` count.
@@ -117,9 +117,9 @@ This is within budget. If measured worse than 20 KB/s, switch to binary (v2).
 | `deliv` | `[pid, amount]` | Cargo delivered to home base. |
 | `hit` | `[attackerPid, victimPid, impulse]` | Significant collision (impulse above `hitEventThreshold`). Used for sparks and HUD feed. |
 | `kill` | `[attackerPid, victimPid]` | Car destroyed by collision. |
-| `respawn` | `[pid, x, y, a]` | Car respawned. |
+| `respawn` | `[pid, x, y, a]` | Cash Run car respawned. Crashfest cars never respawn. |
 | `billNew` | `[id, x, y, v]` | New bill spawned (also in snapshot, event is for sound). |
-| `timer` | `[remainingMs]` | Only at 30 s, 10 s, 0 s. |
+| `timer` | `[remainingMs]` | Cash Run only; emitted at 30 s, 10 s, 0 s. |
 
 Events are reliable and ordered. Clients must apply events in order. Duplicate events (same host `tick` and `k` and payload) are ignored.
 

@@ -44,6 +44,21 @@ body,
   padding: 24px;
 }
 
+.lobby-screen {
+  justify-content: flex-start;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
+}
+
+.lobby-screen > :first-child {
+  margin-block-start: auto;
+}
+
+.lobby-screen > :last-child {
+  margin-block-end: auto;
+}
+
 .start-title,
 .result-title {
   margin: 0;
@@ -232,6 +247,16 @@ body,
   border-radius: 8px;
   background: rgba(0, 0, 0, 0.55);
   font-size: 0.85rem;
+}
+
+.hud-scoreboard {
+  max-height: 50vh;
+  max-height: 50dvh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  pointer-events: auto;
+  touch-action: pan-y;
 }
 
 .hud-feed {
