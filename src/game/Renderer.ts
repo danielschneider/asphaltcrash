@@ -32,6 +32,7 @@ import { generateGroundLayout } from "./ground/groundLayout";
 import { createRng, type Rng } from "./sim/Rng";
 import { damageFromHealth, smoothDamage } from "./shaders/carDamage";
 import { truncateCarName } from "./carLabel";
+import { buildCarShapes, type CarShape } from "./carDesign";
 
 export interface WorldRenderer {
   update(view: WorldView, dtSeconds: number): void;
@@ -53,7 +54,6 @@ const CURB_COLOR = 0x2c2f35;
 const CURB_EDGE_COLOR = 0x8a8f99;
 const CURB_EDGE_WIDTH = 2;
 
-const WINDSHIELD_COLOR = 0x9fd8ff;
 const CARGO_COLOR = 0xffd166;
 const BILL_COLORS = {
   10: 0x7ccf6b,
@@ -360,13 +360,33 @@ function updateCars(
 }
 
 function drawCarBody(slot: CarSlot, pid: number): void {
-  const w = gameConfig.carWidth;
-  const h = gameConfig.carHeight;
   slot.body.clear();
-  slot.body.roundRect(-w / 2, -h / 2, w, h, 4).fill(playerColor(pid));
-  slot.body.rect(w / 2 - 16, -h / 2 + 4, 10, h - 8).fill(WINDSHIELD_COLOR);
-  slot.cargoDot.position.set(-w / 4, 0);
+  for (const shape of buildCarShapes(playerColor(pid))) {
+    drawCarShape(slot.body, shape);
+  }
+  slot.cargoDot.position.set(-gameConfig.carWidth / 4, 0);
   slot.pid = pid;
+}
+
+function drawCarShape(target: Graphics, shape: CarShape): void {
+  if (shape.kind === "circle") {
+    target.circle(shape.x, shape.y, shape.radius).fill({
+      color: shape.fill,
+      alpha: shape.alpha,
+    });
+    return;
+  }
+  const rectPath =
+    shape.radius > 0
+      ? target.roundRect(
+          shape.x,
+          shape.y,
+          shape.width,
+          shape.height,
+          shape.radius,
+        )
+      : target.rect(shape.x, shape.y, shape.width, shape.height);
+  rectPath.fill({ color: shape.fill, alpha: shape.alpha });
 }
 
 function updateCarSlot(slot: CarSlot, car: CarView, dt: number): void {
