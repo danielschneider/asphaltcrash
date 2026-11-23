@@ -67,6 +67,7 @@ interface ClientStart {
   readonly transport: Transport;
   readonly hostPeerId: PeerId;
   readonly arena: ArenaView;
+  readonly names: ReadonlyMap<number, string>;
 }
 
 export const SESSION_STATE = {
@@ -173,6 +174,7 @@ function buildEndHud(
   localPid: number,
   gameMode: GameMode,
   winnerPids: readonly number[],
+  names: ReadonlyMap<number, string>,
 ): HudSnapshot {
   const local = scores.find((row) => row[0] === localPid);
   const localScore =
@@ -181,6 +183,8 @@ function buildEndHud(
     remainingMs: 0,
     gameMode,
     winnerPids,
+    localPid,
+    names,
     score: localScore,
     cargo: 0,
     hp: 0,
@@ -224,6 +228,7 @@ export class SessionController {
   private readonly hudThrottle = new HudThrottle(gameConfig.hudHz);
   private matchFrames = 0;
   private soloGameMode: GameMode = "crashfest";
+  private soloNames: ReadonlyMap<number, string> = new Map();
 
   constructor(deps: SessionDeps = DEFAULT_DEPS) {
     this.deps = deps;
@@ -264,6 +269,7 @@ export class SessionController {
     const token = ++this.startToken;
     const sim = new MatchSimulation(buildSoloSetup(options));
     this.soloGameMode = options.gameMode;
+    this.soloNames = buildCarNames([], options.botCount);
     const renderer = await this.deps.createRenderer(host, sim.arena);
     if (token !== this.startToken || this.state !== SESSION_STATE.idle) {
       renderer.destroy();
@@ -278,7 +284,7 @@ export class SessionController {
       renderer,
       inputSources,
       localPlayerId: LOCAL_PLAYER_ID,
-      carNames: buildCarNames([], options.botCount),
+      carNames: this.soloNames,
       hud: this.deps.hud,
       audio: this.audio,
       onFinished: (snapshot, winnerPids) => this.endMatch(snapshot, winnerPids),
@@ -304,7 +310,13 @@ export class SessionController {
             : [car.pid, car.score, 0, car.score],
         );
         this.deps.hud.push(
-          buildEndHud(scores, LOCAL_PLAYER_ID, this.soloGameMode, winnerPids),
+          buildEndHud(
+            scores,
+            LOCAL_PLAYER_ID,
+            this.soloGameMode,
+            winnerPids,
+            this.soloNames,
+          ),
         );
       }
       this.setState(SESSION_STATE.ended);
@@ -369,7 +381,6 @@ export class SessionController {
     this.setState(SESSION_STATE.hostingLobby);
   }
 
-  // Local only: the CPU count is not sent to clients and does not yet reach the match.
   setLobbyBotCount(count: number): void {
     if (this.state !== SESSION_STATE.hostingLobby) return;
     lobbyStore.set({ bots: clampBotCount(count) });
@@ -453,7 +464,13 @@ export class SessionController {
       peerIdForPid: (pid) => this.lobbyRoster?.peerIdForPid(pid),
       hostInput: () => this.inputBuffer.latest(),
       onFinished: (scores, winners) =>
-        this.finishNetworkMatch(scores, HOST_PID, winners, snapshot.gameMode),
+        this.finishNetworkMatch(
+          scores,
+          HOST_PID,
+          winners,
+          snapshot.gameMode,
+          carNames,
+        ),
     });
     this.matchUnsubscribe = transport.onMessage((msg: NetworkMessage, from) => {
       this.matchHost?.handleInbound(msg, from);
@@ -538,6 +555,7 @@ export class SessionController {
           pending.localPid,
           msg.winners,
           pending.gameMode,
+          pending.names,
         ),
     });
     console.log("[mp][client] MatchClient.start");
@@ -562,11 +580,14 @@ export class SessionController {
     localPid: number,
     winnerPids: readonly number[],
     gameMode: GameMode,
+    names: ReadonlyMap<number, string>,
   ): void {
     if (this.state !== SESSION_STATE.playingNetwork) return;
     console.log("[mp][match] finishNetworkMatch");
     this.resetMatchState();
-    this.deps.hud.push(buildEndHud(scores, localPid, gameMode, winnerPids));
+    this.deps.hud.push(
+      buildEndHud(scores, localPid, gameMode, winnerPids, names),
+    );
     this.setState(SESSION_STATE.endedNetwork);
   }
 
@@ -676,6 +697,11 @@ export class SessionController {
         }
       }),
       handshake.onOutcome((outcome) => this.handleHandshakeOutcome(outcome)),
+      transport.onMessage((msg: NetworkMessage, from) => {
+        if (from === hostPeerId && msg.t === "lobby") {
+          this.applyLobbyMessage(msg);
+        }
+      }),
     ];
     this.connectTimer = this.lobbyDeps.timers.setTimeout(() => {
       this.connectTimer = null;
@@ -725,10 +751,6 @@ export class SessionController {
     if (transport === null) return;
     this.lobbyUnsubscribers.push(
       transport.onMessage((msg: NetworkMessage) => {
-        if (msg.t === "lobby") {
-          this.applyLobbyMessage(msg);
-          return;
-        }
         if (msg.t !== "start" || this.clientStartSeen) return;
         this.beginClientMatch(msg, localPid);
       }),
@@ -783,6 +805,7 @@ export class SessionController {
         pids.slice(humanCount),
         gameMode,
       ),
+      names: new Map(parsed.value.names ?? []),
     };
     this.clientStart = start;
     this.pendingStart = start;

@@ -1,6 +1,6 @@
 import { useHud } from "../../hooks/useHud";
 import { resolveWinners } from "../../game/WorldView";
-import type { HudScore } from "../../store/hudStore";
+import type { HudSnapshot } from "../../store/hudStore";
 import { Brand } from "../brand/Brand";
 import {
   formatCash,
@@ -17,26 +17,28 @@ interface RankedScore {
   readonly pid: number;
   readonly score: number;
   readonly isWinner: boolean;
+  readonly isSelf: boolean;
+  readonly label: string;
 }
 
-function buildRanking(
-  scores: readonly HudScore[],
-  winnerPids: readonly number[] | null,
-): RankedScore[] {
+function buildRanking(snapshot: HudSnapshot): RankedScore[] {
   const scoreMap = new Map<number, number>(
-    scores.map((entry) => [entry.pid, entry.score]),
+    snapshot.scores.map((entry) => [entry.pid, entry.score]),
   );
-  const winners = new Set(winnerPids ?? resolveWinners(scoreMap));
-  return sortScoresDesc(scores).map((entry) => ({
+  const winners = new Set(snapshot.winnerPids ?? resolveWinners(scoreMap));
+  const names = snapshot.names ?? new Map<number, string>();
+  return sortScoresDesc(snapshot.scores).map((entry) => ({
     pid: entry.pid,
     score: entry.score,
     isWinner: winners.has(entry.pid),
+    isSelf: entry.pid === snapshot.localPid,
+    label: names.get(entry.pid) ?? formatPlayerLabel(entry.pid),
   }));
 }
 
 export function ResultScreen({ onBack, onReturnToLobby }: ResultScreenProps) {
   const snapshot = useHud();
-  const ranking = buildRanking(snapshot.scores, snapshot.winnerPids);
+  const ranking = buildRanking(snapshot);
 
   const handleBackToStart = (): void => {
     onBack();
@@ -56,11 +58,9 @@ export function ResultScreen({ onBack, onReturnToLobby }: ResultScreenProps) {
             {ranking.map((entry) => (
               <li
                 key={entry.pid}
-                className={
-                  entry.isWinner ? "result-row is-winner" : "result-row"
-                }
+                className={`result-row${entry.isWinner ? " is-winner" : ""}${entry.isSelf ? " is-self" : ""}`}
               >
-                <span>{formatPlayerLabel(entry.pid)}</span>
+                <span>{entry.label}</span>
                 <span>
                   {snapshot.gameMode === "crashfest"
                     ? `${entry.score} kills`
@@ -74,22 +74,13 @@ export function ResultScreen({ onBack, onReturnToLobby }: ResultScreenProps) {
           </ol>
           <div className="result-actions">
             {onReturnToLobby ? (
-              <>
-                <button
-                  type="button"
-                  className="button button-primary"
-                  onClick={handleBackToLobby}
-                >
-                  Back to lobby
-                </button>
-                <button
-                  type="button"
-                  className="button"
-                  onClick={handleBackToStart}
-                >
-                  Leave room
-                </button>
-              </>
+              <button
+                type="button"
+                className="button button-primary"
+                onClick={handleBackToLobby}
+              >
+                Back to lobby
+              </button>
             ) : (
               <button
                 type="button"

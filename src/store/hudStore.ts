@@ -9,6 +9,8 @@ export interface HudSnapshot {
   readonly remainingMs: number;
   readonly gameMode: GameMode;
   readonly winnerPids: readonly number[] | null;
+  readonly localPid?: number;
+  readonly names?: ReadonlyMap<number, string>;
   readonly score: number;
   readonly cargo: number;
   readonly hp: number;

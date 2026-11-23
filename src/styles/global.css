@@ -547,6 +547,15 @@ body,
   );
 }
 
+.result-row.is-self {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+.result-row.is-self > :nth-child(1) {
+  color: var(--color-accent);
+}
+
 .result-badge {
   grid-area: badge;
   justify-self: start;
@@ -628,6 +637,7 @@ body,
   flex-wrap: wrap;
   align-items: flex-start;
   gap: 8px;
+  z-index: 1;
   pointer-events: none;
 }
 
@@ -708,10 +718,7 @@ body,
 
 .joystick-zone {
   position: absolute;
-  left: calc(env(safe-area-inset-left) + clamp(80px, 10vw, 120px));
-  bottom: calc(env(safe-area-inset-bottom) + 72px);
-  width: min(58vw, 560px);
-  height: min(64vh, 480px);
+  inset: 0;
 }
 
 .joystick-base {
