@@ -281,6 +281,8 @@ Implemented with the browser Web Audio API only (no audio library). Pure math li
 | `carMass` | 1.2 | Matter.js body mass (see gameConfig comment) |
 | `carFriction` | 0.05 | Car body friction |
 | `carRestitution` | 0.35 | Car body restitution (bounciness) |
+| `ramKickFactor` | 0.8 | Extra velocity the victim gets along the impact normal, as a fraction of the rammer's closing speed. Makes full-speed rams shove the other car away. |
+| `wreckFrictionAir` | 0.02 | Air drag on destroyed cars so shoved wrecks stop instead of sliding across the arena. Wrecks stay physical and can be pushed. |
 | `baseWidth` | 160 | Home Base width in px |
 | `baseHeight` | 120 | Home Base height in px |
 | `humanSpawns` | 4 points (x, y, angle) | Human spawn points, angle in rad toward arena centre |

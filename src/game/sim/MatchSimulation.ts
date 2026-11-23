@@ -462,7 +462,7 @@ export class MatchSimulation {
     car.boostTicksLeft = 0;
     car.boosting = false;
     car.throttle = 0;
-    this.physics.setCarFrozen(pid, true);
+    this.physics.setCarWrecked(pid, true);
 
     const { x, y } = this.bodyOf(pid);
     const dropped = [...car.carried];
@@ -492,7 +492,7 @@ export class MatchSimulation {
       if (!car.destroyed || tick < car.respawnTick) continue;
       const spawn = spawnFor(pid, this.setup.gameMode);
       this.physics.teleportCar(pid, spawn.x, spawn.y, spawn.angle);
-      this.physics.setCarFrozen(pid, false);
+      this.physics.setCarWrecked(pid, false);
       car.destroyed = false;
       car.hp = gameConfig.maxHealth;
       car.carried = [];

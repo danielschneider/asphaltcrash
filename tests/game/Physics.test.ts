@@ -333,4 +333,44 @@ describe("PhysicsWorld", () => {
     expect(car?.y ?? NaN).toBeGreaterThan(gameConfig.wallThickness);
     world.dispose();
   });
+
+  it("shoves a wreck away with a velocity kick", () => {
+    const world = createWorld();
+    world.addCar(1, 600, 800, 0);
+    world.addCar(2, 680, 800, 0);
+    world.setCarWrecked(2, true);
+    for (let i = 0; i < 40; i += 1) {
+      world.applyControl(1, FULL, false);
+      world.step();
+    }
+    expect(world.getCar(2)?.vx ?? 0).toBeGreaterThan(0);
+    world.dispose();
+  });
+
+  it("moves a wreck when rammed instead of treating it as a wall", () => {
+    const world = createWorld();
+    world.addCar(1, 600, 800, 0);
+    world.addCar(2, 700, 800, 0);
+    world.setCarWrecked(2, true);
+    for (let i = 0; i < 60; i += 1) {
+      world.applyControl(1, FULL, false);
+      world.step();
+    }
+    expect(world.getCar(2)?.x ?? 0).toBeGreaterThan(700);
+    world.dispose();
+  });
+
+  it("gives a rammed live car a velocity kick beyond plain Matter collision", () => {
+    const world = createWorld();
+    world.addCar(1, 600, 800, 0);
+    world.addCar(2, 700, 800, 0);
+    for (let i = 0; i < 60; i += 1) {
+      world.applyControl(1, FULL, false);
+      world.step();
+    }
+    const rammer = world.getCar(1)?.speed ?? 0;
+    const victim = world.getCar(2)?.speed ?? 0;
+    expect(victim).toBeGreaterThan(rammer * 0.5);
+    world.dispose();
+  });
 });

@@ -89,6 +89,8 @@ export interface GameConfigShape {
   readonly airFriction: number;
   readonly carFriction: number;
   readonly carRestitution: number;
+  readonly ramKickFactor: number;
+  readonly wreckFrictionAir: number;
   readonly wallFriction: number;
   readonly wallRestitution: number;
   readonly boostSpeedBonus: number;
@@ -244,6 +246,10 @@ export const gameConfig = {
   airFriction: 0.0025,
   carFriction: 0.05,
   carRestitution: 0.35,
+  // Victim velocity added along the impact normal, as a factor of the rammer's closing speed.
+  ramKickFactor: 0.8,
+  // Destroyed cars slow down quickly after a shove instead of sliding across the arena.
+  wreckFrictionAir: 0.02,
   wallFriction: 0.1,
   wallRestitution: 0.45,
   boostSpeedBonus: 200,

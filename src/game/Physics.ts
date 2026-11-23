@@ -79,6 +79,7 @@ export class PhysicsWorld {
   private readonly pairs: Matter.Pair[] = [];
   private wallNormals = new Map<number, Vec2[]>();
   private readonly reverseSteps = new Map<number, number>();
+  private readonly wrecked = new Set<number>();
   private readonly handleCollision = (
     event: Matter.IEventCollision<Matter.Engine>,
   ): void => {
@@ -125,16 +126,21 @@ export class PhysicsWorld {
     this.dropBody(body);
     this.cars.delete(pid);
     this.reverseSteps.delete(pid);
+    this.wrecked.delete(pid);
   }
 
-  setCarFrozen(pid: number, frozen: boolean): void {
+  // Wrecks stay dynamic so live cars can shove them; extra air drag stops them sliding across the arena.
+  setCarWrecked(pid: number, wrecked: boolean): void {
     const body = this.cars.get(pid);
     if (!body) return;
-    Matter.Body.setStatic(body, frozen);
-    if (frozen) {
-      Matter.Body.setVelocity(body, ZERO);
-      Matter.Body.setAngularVelocity(body, 0);
+    if (wrecked) {
+      this.wrecked.add(pid);
+    } else {
+      this.wrecked.delete(pid);
     }
+    body.frictionAir = wrecked
+      ? gameConfig.wreckFrictionAir
+      : gameConfig.airFriction;
   }
 
   teleportCar(pid: number, x: number, y: number, angleRad: number): void {
@@ -171,7 +177,7 @@ export class PhysicsWorld {
     boostActive: boolean,
   ): AimDrive {
     const body = this.cars.get(pid);
-    if (!body || body.isStatic) return NO_DRIVE;
+    if (!body || body.isStatic || this.wrecked.has(pid)) return NO_DRIVE;
 
     const heading = headingOf(body.angle);
     const side = { x: -heading.y, y: heading.x };
@@ -219,6 +225,7 @@ export class PhysicsWorld {
     this.pairs.length = 0;
     Matter.Engine.update(this.engine, STEP_MS);
     const contacts = this.collectContacts(preVelocities);
+    this.applyRamKicks(contacts, preVelocities);
     this.wallNormals = this.collectWallNormals();
     this.pairs.length = 0;
     return contacts;
@@ -242,6 +249,7 @@ export class PhysicsWorld {
     Matter.Engine.clear(this.engine);
     this.cars.clear();
     this.reverseSteps.clear();
+    this.wrecked.clear();
     this.bills.clear();
     this.metaByBodyId.clear();
     this.pairs.length = 0;
@@ -395,6 +403,42 @@ export class PhysicsWorld {
       }
     }
     return normals;
+  }
+
+  // Matter splits car-car momentum between equal masses, so the victim alone is pushed too softly.
+  // The victim gains an extra kick along the centre line in proportion to the rammer's closing speed.
+  private applyRamKicks(
+    contacts: readonly PhysicsContact[],
+    preVelocities: ReadonlyMap<number, Vec2>,
+  ): void {
+    for (const contact of contacts) {
+      if (contact.kind !== "car-car" || contact.bPid === null) continue;
+      if (contact.rammerPid === null) continue;
+      const victimPid =
+        contact.rammerPid === contact.aPid ? contact.bPid : contact.aPid;
+      const rammer = this.cars.get(contact.rammerPid);
+      const victim = this.cars.get(victimPid);
+      if (!rammer || !victim) continue;
+      const centre = {
+        x: victim.position.x - rammer.position.x,
+        y: victim.position.y - rammer.position.y,
+      };
+      const distance = Math.hypot(centre.x, centre.y);
+      if (distance === 0) continue;
+      const n = { x: centre.x / distance, y: centre.y / distance };
+      const preRammer = preVelocities.get(rammer.id) ?? ZERO;
+      const preVictim = preVelocities.get(victim.id) ?? ZERO;
+      const closing = dot(
+        { x: preRammer.x - preVictim.x, y: preRammer.y - preVictim.y },
+        n,
+      );
+      if (closing <= 0) continue;
+      const kick = gameConfig.ramKickFactor * closing;
+      Matter.Body.setVelocity(victim, {
+        x: victim.velocity.x + n.x * kick,
+        y: victim.velocity.y + n.y * kick,
+      });
+    }
   }
 
   private collectContacts(
