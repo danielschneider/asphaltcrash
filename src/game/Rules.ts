@@ -1,4 +1,5 @@
 import { gameConfig } from "../config/gameConfig";
+import type { BotDifficulty } from "../types/game";
 import { msToTicks, secondsToTicks } from "./sim/time";
 
 export interface DamageConfig {
@@ -32,6 +33,14 @@ export function wallFrontImpact(
   const frontTowardWall =
     -Math.cos(angle) * wallToCarNormal.x - Math.sin(angle) * wallToCarNormal.y;
   return Math.min(1, Math.max(0, frontTowardWall));
+}
+
+export function humanDamageTakenMultiplier(
+  difficulty: BotDifficulty,
+  isHuman: boolean,
+): number {
+  if (!isHuman) return 1;
+  return gameConfig.humanDamageTakenMultiplier[difficulty];
 }
 
 export function wallDamageMultiplier(frontImpact: number): number {

@@ -24,6 +24,7 @@ import {
   attributeKill,
   canDeliver,
   canPickUp,
+  humanDamageTakenMultiplier,
   isContactOnCooldown,
   nextSpawnTick,
   ticksFromMs,
@@ -436,7 +437,10 @@ export class MatchSimulation {
   ): void {
     const car = this.carOf(victimPid);
     if (car.destroyed || isInvulnerable(car, tick)) return;
-    car.hp = Math.max(0, car.hp - damage);
+    const isHuman = this.setup.humanPlayerIds.includes(victimPid);
+    const scaled =
+      damage * humanDamageTakenMultiplier(this.setup.botDifficulty, isHuman);
+    car.hp = Math.max(0, car.hp - scaled);
     if (attackerPid !== null) {
       recordHit(car, { attackerPid, tick, impulse }, tick);
     }

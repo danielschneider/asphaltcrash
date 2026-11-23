@@ -49,13 +49,21 @@ describe("StartScreen", () => {
   it("starts a solo Crashfest match when selected", () => {
     const onStart = vi.fn();
     render(<StartScreen onStart={onStart} />);
-    fireEvent.change(screen.getByLabelText("Game mode"), {
-      target: { value: "crashfest" },
-    });
+    fireEvent.click(screen.getByRole("radio", { name: /Crashfest/ }));
     fireEvent.click(screen.getByRole("button", { name: "Play Crashfest" }));
     expect(onStart.mock.calls[0]?.[0]).toMatchObject({
       gameMode: "crashfest",
       botCount: gameConfig.botDefaultCount,
+    });
+  });
+
+  it("starts a solo match with the selected difficulty", () => {
+    const onStart = vi.fn();
+    render(<StartScreen onStart={onStart} />);
+    fireEvent.click(screen.getByRole("radio", { name: "Hard" }));
+    fireEvent.click(screen.getByRole("button", { name: "Play vs CPU" }));
+    expect(onStart.mock.calls[0]?.[0]).toMatchObject({
+      botDifficulty: "hard",
     });
   });
 

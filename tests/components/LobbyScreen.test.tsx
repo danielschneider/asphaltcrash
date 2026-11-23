@@ -11,6 +11,7 @@ vi.mock("../../src/session/SessionController", () => ({
     createRoom: vi.fn(),
     joinRoom: vi.fn(),
     setLobbyBotCount: vi.fn(),
+    setLobbyBotDifficulty: vi.fn(),
     setLobbyGameMode: vi.fn(),
     unlockAudio: vi.fn(),
   },
@@ -138,11 +139,30 @@ describe("LobbyScreen", () => {
 
   it("forwards the selected game mode to the session controller", () => {
     render(<LobbyScreen />);
-    fireEvent.change(screen.getByLabelText("Game mode"), {
-      target: { value: "crashfest" },
-    });
+    fireEvent.click(screen.getByRole("radio", { name: /Crashfest/ }));
     expect(sessionController.setLobbyGameMode).toHaveBeenCalledWith(
       "crashfest",
     );
+  });
+
+  it("forwards the selected difficulty to the session controller", () => {
+    render(<LobbyScreen />);
+    fireEvent.click(screen.getByRole("radio", { name: "Easy" }));
+    expect(sessionController.setLobbyBotDifficulty).toHaveBeenCalledWith(
+      "easy",
+    );
+  });
+
+  it("shows difficulty read-only to a client", () => {
+    lobbyStore.set({
+      role: "client",
+      status: "ready",
+      botDifficulty: "hard",
+      gameMode: "crashfest",
+    });
+    render(<LobbyScreen />);
+    expect(screen.queryByRole("radio")).toBeNull();
+    expect(screen.getByText("Hard")).toBeTruthy();
+    expect(screen.getByText("Crashfest")).toBeTruthy();
   });
 });

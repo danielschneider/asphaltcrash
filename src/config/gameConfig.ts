@@ -1,3 +1,5 @@
+import type { BotDifficulty } from "../types/game";
+
 export interface SpawnPoint {
   readonly x: number;
   readonly y: number;
@@ -30,6 +32,7 @@ export interface GameConfigShape {
   readonly damageThresholdImpulse: number;
   readonly damageFactor: number;
   readonly wallSideDamageMultiplier: number;
+  readonly humanDamageTakenMultiplier: Readonly<Record<BotDifficulty, number>>;
   readonly contactCooldownMs: number;
   readonly attributionWindowSeconds: number;
   readonly cargoCapacity: number;
@@ -120,6 +123,8 @@ export interface GameConfigShape {
   readonly audioEngineMaxHz: number;
   readonly audioEngineIdleGain: number;
   readonly audioEngineMaxGain: number;
+  readonly audioThrottleAttackSeconds: number;
+  readonly audioThrottleReleaseSeconds: number;
   readonly audioAccelThreshold: number;
   readonly audioAccelMaxGain: number;
   readonly audioSqueakTurnRate: number;
@@ -155,6 +160,12 @@ export const gameConfig = {
   damageThresholdImpulse: 0.8,
   damageFactor: 9,
   wallSideDamageMultiplier: 0.1,
+  // Scales damage taken by human-controlled cars. Bots are never scaled.
+  humanDamageTakenMultiplier: {
+    easy: 0.4,
+    normal: 0.6,
+    hard: 1,
+  },
   contactCooldownMs: 300,
   attributionWindowSeconds: 1,
   cargoCapacity: 5,
@@ -245,7 +256,7 @@ export const gameConfig = {
   aimPivotRateRadPerSec: 2.6,
   joystickRadiusPx: 72,
   joystickDeadZone: 0.12,
-  botDefaultCount: 3,
+  botDefaultCount: 8,
   botSeedStride: 7919,
   botAttackRadiusPx: 350,
   botEvadeRadiusPx: 200,
@@ -288,6 +299,9 @@ export const gameConfig = {
   audioEngineMaxHz: 120,
   audioEngineIdleGain: 0.18,
   audioEngineMaxGain: 0.6,
+  // Throttle ramps up quickly but releases slowly so the engine winds down instead of cutting out.
+  audioThrottleAttackSeconds: 0.08,
+  audioThrottleReleaseSeconds: 0.7,
   audioAccelThreshold: 0.6,
   audioAccelMaxGain: 0.35,
   // Tyre squeal starts above this yaw rate (rad/s) and reaches full level at audioSqueakFullTurnRate.

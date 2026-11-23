@@ -19,6 +19,10 @@ type SqueakTuning = Pick<
   | "audioSqueakFullTurnRate"
 >;
 type DistanceTuning = Pick<GameConfigShape, "audioHearingRadiusPx">;
+type ThrottleSmoothingTuning = Pick<
+  GameConfigShape,
+  "audioThrottleAttackSeconds" | "audioThrottleReleaseSeconds"
+>;
 
 const THROTTLE_PITCH_HZ = 8;
 
@@ -130,4 +134,20 @@ export function throttleFromSpeedChange(
   }
   const accel = ((speedFraction - prevSpeedFraction) * maxSpeedPx) / dt;
   return clamp01(accel / accelPxPerSec2);
+}
+
+export function smoothThrottle(
+  current: number,
+  target: number,
+  dt: number,
+  cfg: ThrottleSmoothingTuning,
+): number {
+  if (!isPositiveFinite(dt)) return current;
+  const seconds =
+    target > current
+      ? cfg.audioThrottleAttackSeconds
+      : cfg.audioThrottleReleaseSeconds;
+  if (!isPositiveFinite(seconds)) return target;
+  const alpha = 1 - Math.exp(-dt / seconds);
+  return current + (target - current) * alpha;
 }

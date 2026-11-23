@@ -175,6 +175,7 @@ describe("network match lifecycle after finish", () => {
     host.controller.returnToLobby();
     client.controller.returnToLobby();
 
+    host.controller.setLobbyBotCount(1);
     host.controller.startMatch();
     await flush();
     await client.controller.attachMatchRenderer({} as HTMLElement);

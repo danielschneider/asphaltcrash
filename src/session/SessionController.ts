@@ -35,7 +35,14 @@ import { buildNetworkHud, HudThrottle } from "./networkHud";
 import { buildWorldView } from "../game/WorldView";
 import { buildArenaView } from "../game/arena";
 import { parseStart } from "../network/match/startMessage";
-import type { NetworkMessage, ScoreItem } from "../network/protocol/messages";
+import {
+  PROTOCOL_VERSION,
+  type LobbyMessage,
+  type LobbyPlayer as LobbyPlayerItem,
+  type NetworkMessage,
+  type ScoreItem,
+} from "../network/protocol/messages";
+import { validateLobbyEnvelope } from "../network/protocol/validate";
 import { generatePlayerName, generateUniquePlayerName } from "./playerNames";
 import { hudStore, type HudSnapshot, type HudStore } from "../store/hudStore";
 import {
@@ -51,6 +58,7 @@ import type {
   MatchSetup,
   MatchSnapshot,
 } from "../types/game";
+import { isBotDifficulty, isGameMode } from "../types/game";
 
 interface ClientStart {
   readonly start: NetworkMessage;
@@ -322,7 +330,10 @@ export class SessionController {
     const hostName = name.trim() || generatePlayerName();
     const roster = new RosterHandshakeHost(
       { pid: HOST_PID, name: hostName },
-      (players) => lobbyStore.set({ players }),
+      (players) => {
+        lobbyStore.set({ players });
+        this.broadcastLobby();
+      },
       (taken) => generateUniquePlayerName(taken),
     );
     this.lobbyRoster = roster;
@@ -350,8 +361,9 @@ export class SessionController {
       status: "ready",
       pid: HOST_PID,
       players: [{ pid: HOST_PID, name: hostName }],
-      bots: 0,
+      bots: gameConfig.botDefaultCount,
       gameMode: "cash",
+      botDifficulty: "normal",
       error: null,
     });
     this.setState(SESSION_STATE.hostingLobby);
@@ -361,11 +373,42 @@ export class SessionController {
   setLobbyBotCount(count: number): void {
     if (this.state !== SESSION_STATE.hostingLobby) return;
     lobbyStore.set({ bots: clampBotCount(count) });
+    this.broadcastLobby();
   }
 
   setLobbyGameMode(gameMode: GameMode): void {
     if (this.state !== SESSION_STATE.hostingLobby) return;
     lobbyStore.set({ gameMode });
+    this.broadcastLobby();
+  }
+
+  setLobbyBotDifficulty(botDifficulty: BotDifficulty): void {
+    if (this.state !== SESSION_STATE.hostingLobby) return;
+    lobbyStore.set({ botDifficulty });
+    this.broadcastLobby();
+  }
+
+  private broadcastLobby(): void {
+    if (!this.lobbyIsHost || this.lobbyTransport === null) return;
+    const snapshot = lobbyStore.getSnapshot();
+    this.lobbyTransport.send(
+      {
+        v: PROTOCOL_VERSION,
+        t: "lobby",
+        players: snapshot.players.map((player): LobbyPlayerItem => [
+          player.pid,
+          player.name,
+          "h",
+          true,
+        ]),
+        bots: snapshot.bots,
+        cfg: {
+          gameMode: snapshot.gameMode,
+          botDifficulty: snapshot.botDifficulty,
+        },
+      },
+      "reliable",
+    );
   }
 
   startMatch(): void {
@@ -402,7 +445,7 @@ export class SessionController {
       seed,
       humanPids: humans,
       botPids: bots,
-      botDifficulty: "normal",
+      botDifficulty: snapshot.botDifficulty,
       gameMode: snapshot.gameMode,
       names: carNames,
       matchSeconds: gameConfig.matchSeconds,
@@ -682,10 +725,33 @@ export class SessionController {
     if (transport === null) return;
     this.lobbyUnsubscribers.push(
       transport.onMessage((msg: NetworkMessage) => {
+        if (msg.t === "lobby") {
+          this.applyLobbyMessage(msg);
+          return;
+        }
         if (msg.t !== "start" || this.clientStartSeen) return;
         this.beginClientMatch(msg, localPid);
       }),
     );
+  }
+
+  private applyLobbyMessage(msg: LobbyMessage): void {
+    if (this.lobbyIsHost) return;
+    const parsed = validateLobbyEnvelope(msg);
+    if (!parsed.ok) return;
+    const { cfg } = parsed.value;
+    if (!isGameMode(cfg.gameMode) || !isBotDifficulty(cfg.botDifficulty)) {
+      return;
+    }
+    lobbyStore.set({
+      players: parsed.value.players.map(([pid, name]): LobbyPlayer => ({
+        pid,
+        name,
+      })),
+      bots: parsed.value.bots,
+      gameMode: cfg.gameMode,
+      botDifficulty: cfg.botDifficulty,
+    });
   }
 
   private beginClientMatch(msg: NetworkMessage, localPid: number): void {

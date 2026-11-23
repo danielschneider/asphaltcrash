@@ -6,6 +6,7 @@ import {
   distanceGain,
   engineFrequencyHz,
   engineGain,
+  smoothThrottle,
   speedFractionFromDelta,
   squealGain,
   throttleFromSpeedChange,
@@ -44,7 +45,6 @@ interface CarVoice {
 }
 
 const TIME_CONSTANT_SECONDS = 0.05;
-const THROTTLE_SMOOTH_SECONDS = 0.08;
 const NOISE_BUFFER_SECONDS = 1;
 const ENGINE_FILTER_BASE_HZ = 300;
 const ENGINE_FILTER_PER_HZ = 6;
@@ -233,6 +233,7 @@ export class CarAudio {
       voice.throttle,
       estimateThrottle(car, voice, speed, motionDt),
       motionDt,
+      gameConfig,
     );
     voice.prevX = car.x;
     voice.prevY = car.y;
@@ -310,12 +311,6 @@ function estimateThrottle(
     gameConfig.maxForwardSpeed,
     gameConfig.acceleration,
   );
-}
-
-function smoothThrottle(current: number, target: number, dt: number): number {
-  if (dt <= 0) return current;
-  const alpha = 1 - Math.exp(-dt / THROTTLE_SMOOTH_SECONDS);
-  return current + (target - current) * alpha;
 }
 
 function spatialScale(car: CarView, localCar: CarView | undefined): number {

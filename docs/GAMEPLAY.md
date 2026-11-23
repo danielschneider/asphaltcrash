@@ -201,7 +201,7 @@ Quality toggles in Settings: `Effects: full | reduced`, `Tire marks: on | off`. 
 
 ### 8.4 Audio
 Implemented with the browser Web Audio API only (no audio library). Pure math lives in `src/game/audio/audioMath.ts`; the browser voice code is `src/game/audio/CarAudio.ts`.
-- Engine: sawtooth oscillator per car, lowpass filtered. Pitch rises with speed and slightly with throttle (`audioEngineIdleHz` to `audioEngineMaxHz`). Loudness rises with speed and throttle from `audioEngineIdleGain` (never silent at rest).
+- Engine: sawtooth oscillator per car, lowpass filtered. Pitch rises with speed and slightly with throttle (`audioEngineIdleHz` to `audioEngineMaxHz`). Loudness rises with speed and throttle from `audioEngineIdleGain` (never silent at rest). Throttle is smoothed asymmetrically: it ramps up in `audioThrottleAttackSeconds` and winds down in `audioThrottleReleaseSeconds`, so when the joystick is released pitch and loudness ramp down rather than cutting out.
 - Acceleration: filtered noise "push" layer, active only when throttle is above `audioAccelThreshold` (boost counts as full throttle).
 - Tyre squeal: filtered noise at about 2.5 kHz, active on sharp turns at speed (yaw rate above `audioSqueakTurnRate`, speed fraction above `audioSqueakMinSpeedFraction`), full at `audioSqueakFullTurnRate`.
 - Own car is played at `audioOwnCarGain`. Other cars are played at `audioOtherCarGain` and fade linearly with distance to the local car, silent at `audioHearingRadiusPx`. Destroyed cars are silent.
@@ -228,6 +228,7 @@ Implemented with the browser Web Audio API only (no audio library). Pure math li
 | `damageThresholdImpulse` | 0.8 | |
 | `damageFactor` | 9 | |
 | `wallSideDamageMultiplier` | 0.1 | Minimum wall damage multiplier for side/rear impacts; frontal impact damage is unchanged. |
+| `humanDamageTakenMultiplier` | easy 0.4 / normal 0.6 / hard 1 | Scales damage taken by human cars per bot difficulty (section 5.1). Bots are not scaled. |
 | `contactCooldownMs` | 300 | |
 | `attributionWindowSeconds` | 1 | |
 | `cargoCapacity` | 5 | |
@@ -299,7 +300,7 @@ Implemented with the browser Web Audio API only (no audio library). Pure math li
 | `aimDriveAngleRad` | 0.5 | Heading error within which the car drives forward (section 4.1) |
 | `aimBrakeSpeedPxs` | 20 | Forward speed above which a misaligned car brakes (section 4.1) |
 | `aimPivotRateRadPerSec` | 2.6 | Turn rate for a stationary car pivoting toward the aim (section 4.1) |
-| `botDefaultCount` | 3 | Default bot count in solo mode |
+| `botDefaultCount` | 8 | Default bot count in every mode: solo and lobby (host) |
 | `botProfiles` | easy / normal / hard | Bot profile parameters (`reactionDelayTicks`, `aimNoiseRad`, `aggression`) |
 | `playerColors` | 16 hex colours | Car colours assigned by slot order |
 | `carDamageShaderEnabled` | false | Enables the car damage tone filter (section 8.1). Off: damage shows as marks only, paint stays unchanged |
@@ -319,6 +320,8 @@ Implemented with the browser Web Audio API only (no audio library). Pure math li
 | `audioEngineMaxHz` | 120 | Engine oscillator frequency at top speed (section 8.4) |
 | `audioEngineIdleGain` | 0.18 | Engine gain at rest (section 8.4) |
 | `audioEngineMaxGain` | 0.6 | Engine gain at top speed and full throttle (section 8.4) |
+| `audioThrottleAttackSeconds` | 0.08 | Time constant for engine throttle rising (section 8.4) |
+| `audioThrottleReleaseSeconds` | 0.7 | Time constant for engine throttle falling after release (section 8.4) |
 | `audioAccelThreshold` | 0.6 | Throttle above which the acceleration layer starts (section 8.4) |
 | `audioAccelMaxGain` | 0.35 | Acceleration layer gain at full throttle (section 8.4) |
 | `audioSqueakTurnRate` | 1.6 | Yaw rate in rad/s above which tyre squeal starts (section 8.4) |

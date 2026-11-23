@@ -7,6 +7,7 @@ import {
   distanceGain,
   engineFrequencyHz,
   engineGain,
+  smoothThrottle,
   speedFractionFromDelta,
   squealGain,
   turnRateRadPerSec,
@@ -139,6 +140,28 @@ describe("speedFractionFromDelta", () => {
     expect(speedFractionFromDelta(max * DT * 4, 0, DT, max)).toBe(1);
     expect(speedFractionFromDelta(0, 0, DT, max)).toBe(0);
     expect(speedFractionFromDelta(10, 0, 0, max)).toBe(0);
+  });
+});
+
+describe("smoothThrottle", () => {
+  it("ramps up fast and ramps down slower when throttle is released", () => {
+    const up = smoothThrottle(0, 1, DT, gameConfig);
+    const down = smoothThrottle(1, 0, DT, gameConfig);
+    expect(1 - down).toBeLessThan(up);
+    expect(down).toBeGreaterThan(0);
+  });
+
+  it("takes about the configured release time to fall to 1/e", () => {
+    let value = 1;
+    const seconds = gameConfig.audioThrottleReleaseSeconds;
+    for (let t = 0; t < seconds; t += DT) {
+      value = smoothThrottle(value, 0, DT, gameConfig);
+    }
+    expect(value).toBeCloseTo(Math.exp(-1), 1);
+  });
+
+  it("keeps the current value for non-positive dt", () => {
+    expect(smoothThrottle(0.4, 1, 0, gameConfig)).toBeCloseTo(0.4);
   });
 });
 

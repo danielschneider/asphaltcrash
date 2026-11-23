@@ -1,6 +1,7 @@
 import { useHud } from "../../hooks/useHud";
 import { resolveWinners } from "../../game/WorldView";
 import type { HudScore } from "../../store/hudStore";
+import { Brand } from "../brand/Brand";
 import {
   formatCash,
   formatPlayerLabel,
@@ -46,48 +47,61 @@ export function ResultScreen({ onBack, onReturnToLobby }: ResultScreenProps) {
   };
 
   return (
-    <div className="result-screen">
-      <h1 className="result-title">Match over</h1>
-      <ol className="result-list">
-        {ranking.map((entry) => (
-          <li
-            key={entry.pid}
-            className={entry.isWinner ? "result-row is-winner" : "result-row"}
-          >
-            <span>{formatPlayerLabel(entry.pid)}</span>
-            <span>
-              {snapshot.gameMode === "crashfest"
-                ? `${entry.score} kills`
-                : formatCash(entry.score)}
-            </span>
-            {entry.isWinner ? (
-              <span className="result-badge">Winner</span>
-            ) : null}
-          </li>
-        ))}
-      </ol>
-      {onReturnToLobby ? (
-        <>
-          <button
-            type="button"
-            className="button button-primary"
-            onClick={handleBackToLobby}
-          >
-            Back to lobby
-          </button>
-          <button type="button" className="button" onClick={handleBackToStart}>
-            Leave room
-          </button>
-        </>
-      ) : (
-        <button
-          type="button"
-          className="button button-primary"
-          onClick={handleBackToStart}
-        >
-          Back to start
-        </button>
-      )}
+    <div className="menu-screen">
+      <div className="menu-inner">
+        <Brand />
+        <div className="menu-card">
+          <h2 className="result-title">Match over</h2>
+          <ol className="result-list">
+            {ranking.map((entry) => (
+              <li
+                key={entry.pid}
+                className={
+                  entry.isWinner ? "result-row is-winner" : "result-row"
+                }
+              >
+                <span>{formatPlayerLabel(entry.pid)}</span>
+                <span>
+                  {snapshot.gameMode === "crashfest"
+                    ? `${entry.score} kills`
+                    : formatCash(entry.score)}
+                </span>
+                {entry.isWinner ? (
+                  <span className="result-badge">Winner</span>
+                ) : null}
+              </li>
+            ))}
+          </ol>
+          <div className="result-actions">
+            {onReturnToLobby ? (
+              <>
+                <button
+                  type="button"
+                  className="button button-primary"
+                  onClick={handleBackToLobby}
+                >
+                  Back to lobby
+                </button>
+                <button
+                  type="button"
+                  className="button"
+                  onClick={handleBackToStart}
+                >
+                  Leave room
+                </button>
+              </>
+            ) : (
+              <button
+                type="button"
+                className="button button-primary"
+                onClick={handleBackToStart}
+              >
+                Back to start
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

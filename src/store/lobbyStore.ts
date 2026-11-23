@@ -1,4 +1,4 @@
-import type { GameMode } from "../types/game";
+import type { BotDifficulty, GameMode } from "../types/game";
 
 export type LobbyRole = "host" | "client" | "none";
 export type LobbyStatus = "idle" | "connecting" | "ready" | "error";
@@ -16,6 +16,7 @@ export interface LobbySnapshot {
   readonly players: readonly LobbyPlayer[];
   readonly bots: number;
   readonly gameMode: GameMode;
+  readonly botDifficulty: BotDifficulty;
   readonly error: string | null;
 }
 
@@ -36,6 +37,7 @@ const EMPTY_LOBBY: LobbySnapshot = {
   players: [],
   bots: 0,
   gameMode: "cash",
+  botDifficulty: "normal",
   error: null,
 };
 

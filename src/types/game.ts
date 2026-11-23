@@ -1,8 +1,16 @@
 export const BOT_DIFFICULTIES = ["easy", "normal", "hard"] as const;
 export type BotDifficulty = (typeof BOT_DIFFICULTIES)[number];
 
+export function isBotDifficulty(raw: unknown): raw is BotDifficulty {
+  return BOT_DIFFICULTIES.some((level) => level === raw);
+}
+
 export const GAME_MODES = ["cash", "crashfest"] as const;
 export type GameMode = (typeof GAME_MODES)[number];
+
+export function isGameMode(raw: unknown): raw is GameMode {
+  return GAME_MODES.some((mode) => mode === raw);
+}
 
 export const BILL_VALUES = [10, 20, 50] as const;
 export type BillValue = (typeof BILL_VALUES)[number];

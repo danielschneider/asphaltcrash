@@ -12,6 +12,7 @@ const BASE: LobbySnapshot = {
   players: [],
   bots: 0,
   gameMode: "cash",
+  botDifficulty: "normal",
   error: null,
 };
 

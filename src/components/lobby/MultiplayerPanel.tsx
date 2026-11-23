@@ -52,22 +52,24 @@ export function MultiplayerPanel({ initialJoinCode }: MultiplayerPanelProps) {
     <div className="start-form multiplayer-panel">
       <div className="start-field">
         <label htmlFor={nameId}>Name</label>
-        <input
-          id={nameId}
-          type="text"
-          maxLength={PLAYER_NAME_MAX_LENGTH}
-          placeholder="Generated if empty"
-          value={name}
-          onChange={handleNameChange}
-        />
-        <button
-          type="button"
-          className="button"
-          aria-label="Generate new name"
-          onClick={handleRefreshName}
-        >
-          ↻
-        </button>
+        <div className="name-row">
+          <input
+            id={nameId}
+            type="text"
+            maxLength={PLAYER_NAME_MAX_LENGTH}
+            placeholder="Generated if empty"
+            value={name}
+            onChange={handleNameChange}
+          />
+          <button
+            type="button"
+            className="button button-icon"
+            aria-label="Generate new name"
+            onClick={handleRefreshName}
+          >
+            ↻
+          </button>
+        </div>
       </div>
       <button
         type="button"

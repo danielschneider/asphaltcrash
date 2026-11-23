@@ -5,6 +5,7 @@ import {
   attributeKill,
   canDeliver,
   canPickUp,
+  humanDamageTakenMultiplier,
   isContactOnCooldown,
   isWithinAttribution,
   nextSpawnTick,
@@ -12,6 +13,20 @@ import {
   wallDamageMultiplier,
   wallFrontImpact,
 } from "../../src/game/Rules";
+
+describe("humanDamageTakenMultiplier", () => {
+  it("scales human damage per difficulty", () => {
+    expect(humanDamageTakenMultiplier("easy", true)).toBeCloseTo(0.4);
+    expect(humanDamageTakenMultiplier("normal", true)).toBeCloseTo(0.6);
+    expect(humanDamageTakenMultiplier("hard", true)).toBeCloseTo(1);
+  });
+
+  it("never scales bot damage", () => {
+    expect(humanDamageTakenMultiplier("easy", false)).toBe(1);
+    expect(humanDamageTakenMultiplier("normal", false)).toBe(1);
+    expect(humanDamageTakenMultiplier("hard", false)).toBe(1);
+  });
+});
 
 const damageConfig = {
   damageThresholdImpulse: gameConfig.damageThresholdImpulse,

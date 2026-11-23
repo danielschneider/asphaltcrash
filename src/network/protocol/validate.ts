@@ -1,9 +1,9 @@
 import { gameConfig } from "../../config/gameConfig";
 import {
   BILL_VALUES,
-  GAME_MODES,
+  isBotDifficulty,
+  isGameMode,
   type BillValue,
-  type GameMode,
 } from "../../types/game";
 import {
   EVENT_KINDS,
@@ -14,6 +14,7 @@ import {
   type EventMessage,
   type InputMessage,
   type LobbyKind,
+  type LobbyMessage,
   type LobbyMessageBody,
   type LobbyPlayer,
   type MatchConfigShape,
@@ -85,10 +86,6 @@ function isBoundedNumber(raw: unknown, limit: number): raw is number {
 
 function isBillValue(raw: unknown): raw is BillValue {
   return BILL_VALUES.some((value) => value === raw);
-}
-
-function isGameMode(raw: unknown): raw is GameMode {
-  return GAME_MODES.some((mode) => mode === raw);
 }
 
 function isEventKind(raw: unknown): raw is EventMessage["k"] {
@@ -426,6 +423,8 @@ export function validateMessage(raw: unknown): ParseResult<NetworkMessage> {
       return validateRejectPayload(raw);
     case "start":
       return validateStart(raw);
+    case "lobby":
+      return validateLobbyEnvelope(raw);
     case "ready":
       return validateReadyEnvelope(raw);
     case "end":
@@ -599,6 +598,36 @@ function validateSpawnItem(raw: unknown): ParseResult<SpawnItem> {
   return { ok: true, value: [pid, x, y, angle] };
 }
 
+export function validateLobbyEnvelope(raw: unknown): ParseResult<LobbyMessage> {
+  if (!isRecord(raw)) {
+    return fail("not-object");
+  }
+  const envelopeError = checkEnvelope(raw, "lobby");
+  if (envelopeError !== null) {
+    return fail(envelopeError);
+  }
+  const body = validateLobbyBody(raw);
+  if (!body.ok) {
+    return body;
+  }
+  if (!isGameMode(body.value.cfg.gameMode)) {
+    return fail("field:gameMode");
+  }
+  if (!isBotDifficulty(body.value.cfg.botDifficulty)) {
+    return fail("field:botDifficulty");
+  }
+  return {
+    ok: true,
+    value: {
+      v: PROTOCOL_VERSION,
+      t: "lobby",
+      players: body.value.players,
+      bots: body.value.bots,
+      cfg: body.value.cfg,
+    },
+  };
+}
+
 export function validateStart(raw: unknown): ParseResult<StartMessage> {
   if (!isRecord(raw)) {
     return fail("not-object");
@@ -620,6 +649,9 @@ export function validateStart(raw: unknown): ParseResult<StartMessage> {
   const gameMode = cfg.value.gameMode ?? "cash";
   if (!isGameMode(gameMode)) {
     return fail("field:gameMode");
+  }
+  if (!isBotDifficulty(cfg.value.botDifficulty)) {
+    return fail("field:botDifficulty");
   }
   const matchSeconds = cfg.value.matchSeconds;
   if (

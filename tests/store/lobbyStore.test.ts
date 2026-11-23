@@ -26,6 +26,7 @@ describe("createLobbyStore", () => {
       players: [],
       bots: 0,
       gameMode: "cash",
+      botDifficulty: "normal",
       error: null,
     });
   });
