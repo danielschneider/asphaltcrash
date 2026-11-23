@@ -177,7 +177,7 @@ Crashfest uses a 1600 × 1200 px arena. Its spawn positions are scaled from the 
 - Floor: subdued gray asphalt texture (single tile texture).
 - Ground detail: a static layout (`src/game/ground/groundLayout.ts`) of asphalt speckle dots, a few lighter/darker patch tiles and a dark curb strip along the inner wall edges. It is drawn once in world space under the bases and cars, so it scrolls under the car as the camera follows. Counts are set by `groundSpeckleCount`, `groundPatchCount` and `groundCurbWidth`.
 - Car damage: the car paint is never tinted or desaturated. The tone-only shader pass is off (`carDamageShaderEnabled: false`); it used to grey out the whole car. Damage = 1 - hp / maxHealth, smoothed per frame, and only drives the damage marks below.
-- Damage marks: `carDamageScratchCount` thin dark scratches, crack polylines and grime dots are drawn in car-local coordinates inside the car container, so they rotate with the car body and stay fixed on it while steering. Layout is fixed per car slot from `visualSeed`. Each mark fades in when damage passes its own threshold (ramp `carDamageMarkRamp`). Marks are hidden for destroyed cars.
+- Damage marks: `carDamageScratchCount` dark scratches (stroke width 1.5 to 2.5 px, fully opaque), crack polylines and grime dots are drawn in car-local coordinates inside the car container, so they rotate with the car body and stay fixed on it while steering. Layout is fixed per car slot from `visualSeed`. Each mark fades in when damage passes its own threshold (ramp `carDamageMarkRamp`). Marks are hidden for destroyed cars.
 
 ### 8.2 Effects
 | Effect | Trigger | Budget |

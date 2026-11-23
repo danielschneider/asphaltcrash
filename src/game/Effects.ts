@@ -129,7 +129,7 @@ function drawCarDamageMark(mark: CarDamageMark): Graphics {
   }
   g.moveTo(first.x, first.y);
   for (const point of mark.points.slice(1)) g.lineTo(point.x, point.y);
-  g.stroke({ width: mark.width, color, alpha: 0.85, join: "round" });
+  g.stroke({ width: mark.width, color, alpha: 1, join: "round" });
   return g;
 }
 
