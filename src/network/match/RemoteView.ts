@@ -1,6 +1,7 @@
 import { gameConfig } from "../../config/gameConfig";
 import type { MatchSnapshot } from "../../types/game";
 import { SnapshotBuffer } from "../sync/SnapshotBuffer";
+import { MatchClock } from "./MatchClock";
 import { SNAPSHOT_STRIDE_TICKS } from "./snapshotStride";
 
 export const HOST_STEP_MS = 1000 / gameConfig.fixedStepHz;
@@ -19,6 +20,7 @@ function clamp(value: number, min: number, max: number): number {
 export class RemoteView {
   private readonly buffer: SnapshotBuffer;
   private renderTick: number | null = null;
+  private readonly clock = new MatchClock();
   private loggedNull = false;
   private loggedValue = false;
 
@@ -28,6 +30,12 @@ export class RemoteView {
 
   push(snapshot: MatchSnapshot): void {
     this.buffer.push(snapshot);
+    this.clock.push(snapshot.timeRemainingMs);
+  }
+
+  // Wall-rate countdown for the HUD; independent of the render-tick easing.
+  remainingMs(dtSeconds: number): number | null {
+    return this.clock.advance(Math.max(dtSeconds, 0));
   }
 
   advance(dtSeconds: number): MatchSnapshot | null {

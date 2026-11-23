@@ -105,6 +105,7 @@ function makeHarness(): Harness {
     localPid: 0,
     renderer,
     inputBuffer: input,
+    hud: { push: () => undefined },
     now: () => clock.now,
     requestFrame: (cb) => {
       pending = cb;

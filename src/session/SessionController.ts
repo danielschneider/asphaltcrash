@@ -31,6 +31,7 @@ import { clampBotCount, totalCarCount } from "./lobbyRoster";
 import { MatchHost, MATCH_HOST_PHASE } from "./MatchHost";
 import { MatchClient } from "./MatchClient";
 import { frameSecondsSince } from "./frameSeconds";
+import { buildNetworkHud, HudThrottle } from "./networkHud";
 import { buildWorldView } from "../game/WorldView";
 import { buildArenaView } from "../game/arena";
 import { parseStart } from "../network/match/startMessage";
@@ -198,6 +199,7 @@ export class SessionController {
   private clientStart: ClientStart | null = null;
   private clientStartSeen = false;
   private hostRenderMs: number | null = null;
+  private readonly hudThrottle = new HudThrottle(gameConfig.hudHz);
   private matchFrames = 0;
   private soloGameMode: GameMode = "cash";
 
@@ -397,6 +399,7 @@ export class SessionController {
       this.matchHost?.handleInbound(msg, from);
     });
     this.hostRenderMs = null;
+    this.hudThrottle.reset();
     this.setState(SESSION_STATE.playingNetwork);
     this.matchHost.start();
     console.log(
@@ -464,6 +467,7 @@ export class SessionController {
       localPid: pending.localPid,
       renderer,
       inputBuffer: this.inputBuffer,
+      hud: this.deps.hud,
       now: () => performance.now(),
       requestFrame: (cb) =>
         (this.deps.requestFrame ?? requestAnimationFrame)(cb),
@@ -519,10 +523,21 @@ export class SessionController {
     if (host.phase !== MATCH_HOST_PHASE.running) return;
     const dtSeconds = frameSecondsSince(this.hostRenderMs, nowMs);
     this.hostRenderMs = nowMs;
+    const snapshot = host.snapshot();
     renderer.update(
       buildWorldView(host.renderSnapshot(), host.arena, HOST_PID),
       dtSeconds,
     );
+    if (this.hudThrottle.tick(dtSeconds)) {
+      this.deps.hud.push(
+        buildNetworkHud(
+          snapshot,
+          HOST_PID,
+          host.gameMode,
+          snapshot.timeRemainingMs,
+        ),
+      );
+    }
   }
 
   private logMatchFrame(): void {

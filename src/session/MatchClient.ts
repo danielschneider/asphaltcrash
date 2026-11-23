@@ -13,9 +13,12 @@ import type {
 } from "../network/protocol/messages";
 import { validateSnapPayload } from "../network/protocol/validate";
 import type { Transport, Unsubscribe } from "../network/transport/Transport";
-import type { ArenaView } from "../types/game";
+import type { HudSink } from "../store/hudStore";
+import type { ArenaView, GameMode, MatchSnapshot } from "../types/game";
 import type { PeerId } from "../types/network";
 import { frameSecondsSince } from "./frameSeconds";
+import { buildNetworkHud, HudThrottle } from "./networkHud";
+import { gameConfig } from "../config/gameConfig";
 
 export interface MatchClientDeps {
   readonly transport: Transport;
@@ -23,6 +26,7 @@ export interface MatchClientDeps {
   readonly localPid: number;
   readonly renderer: WorldRenderer;
   readonly inputBuffer: InputBuffer;
+  readonly hud: HudSink;
   readonly now: () => number;
   readonly requestFrame: (cb: (t: number) => void) => number;
   readonly cancelFrame: (id: number) => void;
@@ -37,6 +41,8 @@ export class MatchClient {
   private readonly inputSender: InputSender;
   private matchId: number | null = null;
   private arena: ArenaView | null = null;
+  private gameMode: GameMode = "cash";
+  private readonly hudThrottle = new HudThrottle(gameConfig.hudHz);
   private scores: readonly ScoreItem[] = [];
   private finished = false;
   private unsubscribe: Unsubscribe | null = null;
@@ -117,6 +123,7 @@ export class MatchClient {
     const humanCount = typeof cfg.humanCount === "number" ? cfg.humanCount : 0;
     const gameMode = cfg.gameMode === "crashfest" ? "crashfest" : "cash";
     this.matchId = mid;
+    this.gameMode = gameMode;
     this.arena = buildArenaView(
       pids.slice(0, humanCount),
       pids.slice(humanCount),
@@ -171,11 +178,22 @@ export class MatchClient {
       dtSeconds,
     );
     this.rendererUpdates += 1;
+    this.publishHud(sample, dtSeconds);
     if (this.rendererUpdates === 1 || this.rendererUpdates % 60 === 0) {
       console.log(
         `[mp][client] renderer.update n=${this.rendererUpdates} cars=${sample.cars.length}`,
       );
     }
+  }
+
+  // HUD timer is wall-rate display only. The match ends solely on the host's end message.
+  private publishHud(sample: MatchSnapshot, dtSeconds: number): void {
+    const remainingMs = this.remote.remainingMs(dtSeconds);
+    if (remainingMs === null) return;
+    if (!this.hudThrottle.tick(dtSeconds)) return;
+    this.deps.hud.push(
+      buildNetworkHud(sample, this.deps.localPid, this.gameMode, remainingMs),
+    );
   }
 
   private takeFrameSeconds(nowMs: number): number {

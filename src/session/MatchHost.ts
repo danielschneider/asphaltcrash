@@ -59,6 +59,8 @@ export interface MatchHostDeps {
 const HOST_PID = 0;
 const STEP_MS = 1000 / gameConfig.fixedStepHz;
 const STEP_EPSILON_MS = 1e-6;
+const MAX_CATCHUP_STEPS = 20;
+const MAX_BACKLOG_MS = 5000;
 
 export class MatchHost {
   private readonly deps: MatchHostDeps;
@@ -75,6 +77,7 @@ export class MatchHost {
   private readyTimer: unknown = null;
   private lastNowMs = 0;
   private accumulatorMs = 0;
+  private backlogMs = 0;
   private snapsSent = 0;
 
   constructor(deps: MatchHostDeps) {
@@ -136,20 +139,24 @@ export class MatchHost {
     }, gameConfig.matchReadyTimeoutMs);
   }
 
+  // Match time follows wall time. Elapsed time beyond maxFrameDeltaMs is kept as backlog and drained over later calls, so a stall does not permanently lose match time. Backlog is capped at MAX_BACKLOG_MS.
   tick(nowMs: number): void {
     if (this.phaseValue !== MATCH_HOST_PHASE.running) return;
-    const deltaMs = Math.min(
-      Math.max(nowMs - this.lastNowMs, 0),
-      gameConfig.maxFrameDeltaMs,
-    );
+    const elapsedMs = Math.max(nowMs - this.lastNowMs, 0);
     this.lastNowMs = nowMs;
-    this.accumulatorMs += deltaMs;
+    this.backlogMs = Math.min(this.backlogMs + elapsedMs, MAX_BACKLOG_MS);
+    const drainMs = Math.min(this.backlogMs, gameConfig.maxFrameDeltaMs);
+    this.backlogMs -= drainMs;
+    this.accumulatorMs += drainMs;
+    let steps = 0;
     while (
       this.phaseValue === MATCH_HOST_PHASE.running &&
-      this.accumulatorMs + STEP_EPSILON_MS >= STEP_MS
+      this.accumulatorMs + STEP_EPSILON_MS >= STEP_MS &&
+      steps < MAX_CATCHUP_STEPS
     ) {
       this.accumulatorMs -= STEP_MS;
       this.stepOnce(nowMs);
+      steps += 1;
     }
   }
 
@@ -185,6 +192,7 @@ export class MatchHost {
     this.phaseValue = MATCH_HOST_PHASE.running;
     this.lastNowMs = this.deps.now();
     this.accumulatorMs = 0;
+    this.backlogMs = 0;
     console.log(
       `[mp][host] running ready=${this.readyPids.size}/${this.clientPids.length}`,
     );
