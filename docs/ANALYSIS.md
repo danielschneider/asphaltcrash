@@ -178,7 +178,7 @@ Bot difficulty levels: `easy`, `normal`, `hard` as parameters (reaction delay, a
 
 ### 3.9 D11 – Controls
 - **Virtual joystick only (README).** Left thumb: analog direction. Mapping: up = throttle, down = brake/reverse, left/right = steer. Joystick is a DOM/Pointer element in a broad lower-left touch zone and floats to the initial thumb position.
-- **Second control: boost/handbrake button (right thumb).** Recommended because drifting and handbrake are key for fighting. Not part of README; flagged as Q-04.
+- **Second control (boost button): removed per owner (Q-04).** CPU cars keep boost.
 - **Tilt/gyro.** Requires `DeviceOrientationEvent.requestPermission()` on iOS. Rejected for v1.
 
 Multi-touch works on iPad Safari. Touch handling uses Pointer Events with `setPointerCapture`.
@@ -211,7 +211,7 @@ Multi-touch works on iPad Safari. Touch handling uses Pointer Events with `setPo
 | D8 | PixiJS 8.23.0 with a single camera container and `ParticleContainer` effects |
 | D9 | React 19 overlays, HUD at 10 Hz |
 | D10 | Rule-based FSM bots on host |
-| D11 | Left-side virtual joystick, right-side action button (boost/handbrake) |
+| D11 | Full-screen virtual joystick; no action button (Q-04 removed) |
 | D12 | Vite SPA on GitHub Pages, optional PWA manifest |
 | D13 | End match on host loss in v1 |
 | D14 | 45 s reconnect window with token |
@@ -261,7 +261,7 @@ Modes supported by this combination:
 | Q-01 | Player cap: 4 (your request) or 5 (README)? | **Decided: default 4, configurable (`maxHumans`), not hard-locked.** |
 | Q-02 | TURN relay: free service with public credential, or STUN only? | **Decided: STUN only in v1, no TURN. Own free relay server postponed; revisit only if P2.6 shows real failures.** |
 | Q-03 | Win condition: timer with highest cash, or first to target cash, or elimination count? | **Decided: timer, 180 s default and configurable, highest score wins.** |
-| Q-04 | Add a second button (boost/handbrake) to the right thumb? | **Decided: yes.** |
+| Q-04 | Add a second button (boost/handbrake) to the right thumb? | **Revised: removed by owner. Human players have no boost; CPU boost kept.** |
 | Q-05 | Is the host allowed to be a phone, or tablet only? | Any device with a modern browser; tablet recommended. |
 | Q-06 | Solo CPU mode difficulty default? | Normal |
 | Q-07 | Is landscape-only acceptable? (Browsers cannot lock orientation on iOS.) | **Decided: landscape only, with "rotate device" overlay in portrait.** |

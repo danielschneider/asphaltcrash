@@ -4,7 +4,7 @@ Top-down 2D multiplayer vehicle combat arena game with Cash Run and Crashfest mo
 
 ## 1. Game Concept & Core Loop
 - **Genre:** Top-Down Arena Car Combat / Arcade (inspired by *GTA 1* camera perspective and *Destruction Derby* physics).
-- **Target Platform & Controls:** Mobile/tablet web browsers, landscape orientation only (portrait shows a "rotate device" hint). Up to 4 human players by default (configurable, not hard-locked); empty slots are filled with CPU bots. Controlled exclusively via a touch-based **on-screen virtual joystick** plus one action button (boost). Players cannot exit their vehicles.
+- **Target Platform & Controls:** Mobile/tablet web browsers, landscape orientation only (portrait shows a "rotate device" hint). Up to 4 human players by default (configurable, not hard-locked); empty slots are filled with CPU bots. Controlled exclusively via a touch-based **on-screen virtual joystick**. Human players have no boost; CPU cars can boost. Players cannot exit their vehicles.
 - **Gameplay Mechanics:**
   - **Vehicle Combat & Physics:** Players steer cars around an enclosed arena, ramming opponents and obstacles to inflict and receive structural damage.
   - **Objective (Cash Collection):** Cash bills spawn dynamically in the arena. Players collect bills on contact and deliver them to their designated **Home Base** (a rectangular drop-off zone positioned near their spawn/joystick area) to score.

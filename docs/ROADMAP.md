@@ -13,7 +13,7 @@ Device targets: iPad (current iPadOS, Safari) primary; desktop Chrome for develo
 | Q-01 | Default 4 human cap, configurable, not hard-locked. | Owner | Decided |
 | Q-02 | STUN only in v1, no TURN. Own free relay postponed. | Owner | Decided |
 | Q-03 | 180 s default, configurable; highest score wins. | Owner | Decided |
-| Q-04 | Second button (boost) on right thumb. | Owner | Decided: yes |
+| Q-04 | Second button (boost) on right thumb. | Owner | Revised: button removed; CPU keeps boost |
 | Q-06 | Default CPU difficulty. | Owner | Proposed Normal |
 | Q-07 | Landscape-only with rotate hint. | Owner | Decided: yes |
 | Q-08 | Apply `Unittests.md` workspace rule to this repo? | Owner | Proposed no |

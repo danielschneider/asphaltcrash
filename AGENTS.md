@@ -124,7 +124,7 @@ Run all of `typecheck`, `lint`, `test`, `build` before reporting a task as compl
 | Q-01 | Human player cap | 4 | Ask owner before changing |
 | Q-02 | TURN and credentials | STUN only, TURN postponed (decided) | Do not add TURN without owner; never commit real credentials |
 | Q-03 | Win condition and match length | 180 s, highest score | Ask owner before changing |
-| Q-04 | Boost button | yes | Ask owner before removing |
+| Q-04 | Boost button | removed (owner decision) | Human boost removed; CPU boost kept |
 | Q-06 | Default bot difficulty | Normal | |
 | Q-07 | Landscape hint | yes | |
 | Q-08 | Workspace rule in `Unittests.md` | no | Do not run commands against other workspaces |

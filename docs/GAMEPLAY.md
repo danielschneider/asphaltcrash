@@ -59,7 +59,7 @@ Bills are visible to all players. Pickup and delivery are determined by the host
 | Joystick direction | car turns until its nose points along the stick direction, then drives |
 | Joystick released | car coasts to a stop, no steering |
 | Stick pointing away from heading | car brakes, then pivots in place toward the stick; no forward drive until within `aimDriveAngleRad` |
-| Action button (right thumb, Q-04) | boost (short forward impulse, 2 s cooldown) |
+| Boost | CPU cars only. Human players have no boost button (Q-04 removed). |
 
 - Joystick: floating control anchored at the initial touch within a broad lower-left zone, radius 72 px (CSS units), dead zone 12 %.
 - The stick sends an absolute aim vector (`aimX`, `aimY`, unit circle), not steer and throttle. Pushing up always means "face up and drive up", regardless of the car's current heading.
@@ -153,7 +153,7 @@ Crashfest uses a 1600 × 1200 px arena. Its spawn positions are scaled from the 
 |---------|----------|--------|
 | Timer | top center | 10 Hz |
 | Score and cargo | top left | 10 Hz |
-| Health bar (own car) | bottom right above action button | 10 Hz |
+| Health bar (own car) | bottom right | 10 Hz |
 | Scoreboard (all cars) | top right, collapsible and scrollable within a viewport-bounded panel | 10 Hz |
 | Attack feed | top, below timer | on event |
 | Ping indicator | top right corner, debug or multiplayer only | 1 Hz |
@@ -161,7 +161,7 @@ Crashfest uses a 1600 × 1200 px arena. Its spawn positions are scaled from the 
 
 ### 7.3 Layout (iPad landscape)
 - Left thumb: joystick, lower-left.
-- Right thumb: action button, lower-right.
+- Right side: no controls for humans. Joystick covers the full screen.
 - Center: game world. HUD does not overlay the car center.
 - Safe-area insets respected.
 

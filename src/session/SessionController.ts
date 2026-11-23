@@ -269,7 +269,10 @@ export class SessionController {
     const token = ++this.startToken;
     const sim = new MatchSimulation(buildSoloSetup(options));
     this.soloGameMode = options.gameMode;
-    this.soloNames = buildCarNames([], options.botCount);
+    this.soloNames = buildCarNames(
+      [{ pid: LOCAL_PLAYER_ID, name: "Player" }],
+      options.botCount,
+    );
     const renderer = await this.deps.createRenderer(host, sim.arena);
     if (token !== this.startToken || this.state !== SESSION_STATE.idle) {
       renderer.destroy();

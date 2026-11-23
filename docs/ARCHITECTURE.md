@@ -66,7 +66,7 @@ Game traffic never passes through a server. Signaling traffic is tiny and stops 
 ┌────────────────────────────────────────────────────────────────────────┐
 │ L5 Presentation (React 19)                                             │
 │    screens: Start, Lobby, Match HUD, Scoreboard, Settings, Error       │
-│    overlays: JoystickPad, ActionButton, RotateHint, ConnectionBanner   │
+│    overlays: JoystickPad, RotateHint, ConnectionBanner   │
 ├────────────────────────────────────────────────────────────────────────┤
 │ L4 Application / Session controller                                    │
 │    SessionController (state machine: idle→creating→lobby→playing→end)  │
@@ -121,7 +121,7 @@ asphaltcrash/
 │   ├── components/             # React UI, no game logic
 │   │   ├── lobby/              # StartScreen, LobbyScreen, RoomCode, JoinQr
 │   │   ├── hud/                # Hud, Scoreboard, ConnectionBanner, TimerBadge
-│   │   ├── controls/           # JoystickPad, ActionButton, RotateHint
+│   │   ├── controls/           # JoystickPad, RotateHint
 │   │   └── common/             # Button, Modal (only if reused)
 │   ├── game/
 │   │   ├── Engine.ts           # rAF loop, fixed-step accumulator, frame orchestration
@@ -333,7 +333,7 @@ client playing ──disconnect(self, temporary)──► reconnecting(45 s) ─
 
 ### 6.10 React UI (L5)
 - `App.tsx` chooses screen from `SessionController` state. No game logic in components.
-- Screens: `StartScreen` (Play vs CPU / Host multiplayer / Join with code), `LobbyScreen` (room code, QR, player list, bots slider, start), `MatchScreen` (canvas container, joystick, action button, HUD), `ResultScreen`.
+- Screens: `StartScreen` (Play vs CPU / Host multiplayer / Join with code), `LobbyScreen` (room code, QR, player list, bots slider, start), `MatchScreen` (canvas container, joystick, HUD), `ResultScreen`.
 - `MatchScreen` mounts the Pixi canvas inside a `div` ref and calls `Engine.start()` in `useEffect`; unmounts on leave.
 - HUD: `useSyncExternalStore(hudStore.subscribe, hudStore.getSnapshot)`. Store updates at 10 Hz.
 - Component size limit: 300 lines (owner rule). Logic in hooks (`useSession`, `useHud`, `useJoystick`).

@@ -1,5 +1,4 @@
 import { useEffect, useRef } from "react";
-import { ActionButton } from "../controls/ActionButton";
 import { JoystickPad } from "../controls/JoystickPad";
 import { RotateHint } from "../controls/RotateHint";
 import { useKeyboardInput } from "../../hooks/useKeyboardInput";
@@ -31,7 +30,6 @@ export function NetworkMatchScreen({ onExit }: NetworkMatchScreenProps) {
       <div ref={surfaceRef} className="game-surface" />
       <Hud />
       <JoystickPad inputBuffer={inputBuffer} />
-      <ActionButton inputBuffer={inputBuffer} />
       <button type="button" className="match-back" onClick={onExit}>
         Exit
       </button>

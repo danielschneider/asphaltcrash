@@ -45,8 +45,7 @@ body,
 }
 
 .game-surface,
-.joystick-zone,
-.action-button {
+.joystick-zone {
   touch-action: none;
   user-select: none;
   -webkit-user-select: none;
@@ -745,24 +744,6 @@ body,
   border-radius: 50%;
   background: rgba(255, 255, 255, 0.5);
   pointer-events: none;
-}
-
-.action-button {
-  position: absolute;
-  right: calc(env(safe-area-inset-right) + 16px);
-  bottom: calc(env(safe-area-inset-bottom) + 16px);
-  width: 112px;
-  height: 112px;
-  border: 2px solid rgba(255, 255, 255, 0.3);
-  border-radius: 50%;
-  background: rgba(230, 57, 70, 0.7);
-  color: #fff;
-  font-size: 1.1rem;
-  font-weight: 700;
-}
-
-.action-button:active {
-  background: rgba(230, 57, 70, 1);
 }
 
 .rotate-hint {
