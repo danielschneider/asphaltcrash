@@ -42,6 +42,7 @@ export class MatchClient {
   private matchId: number | null = null;
   private arena: ArenaView | null = null;
   private gameMode: GameMode = "cash";
+  private carNames: ReadonlyMap<number, string> = new Map();
   private readonly hudThrottle = new HudThrottle(gameConfig.hudHz);
   private scores: readonly ScoreItem[] = [];
   private finished = false;
@@ -124,6 +125,7 @@ export class MatchClient {
     const gameMode = cfg.gameMode === "crashfest" ? "crashfest" : "cash";
     this.matchId = mid;
     this.gameMode = gameMode;
+    this.carNames = new Map(parsed.value.names ?? []);
     this.arena = buildArenaView(
       pids.slice(0, humanCount),
       pids.slice(humanCount),
@@ -174,7 +176,7 @@ export class MatchClient {
     const sample = this.remote.advance(dtSeconds);
     if (sample === null) return;
     this.deps.renderer.update(
-      buildWorldView(sample, arena, this.deps.localPid),
+      buildWorldView(sample, arena, this.deps.localPid, this.carNames),
       dtSeconds,
     );
     this.rendererUpdates += 1;

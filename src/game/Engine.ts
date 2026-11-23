@@ -28,6 +28,7 @@ export interface EngineDeps {
     winnerPids: readonly number[],
   ) => void;
   readonly audio?: CarAudioSink;
+  readonly carNames?: ReadonlyMap<number, string>;
   readonly requestFrame?: (cb: (t: number) => void) => number;
   readonly cancelFrame?: (id: number) => void;
 }
@@ -240,12 +241,13 @@ export class Engine {
 
   // Renders between the last two sim states at alpha = accumulator / STEP. Sim state itself is never changed here.
   private render(hudDue: boolean, dtSeconds: number): void {
-    const { renderer, localPlayerId, audio } = this.deps;
+    const { renderer, localPlayerId, audio, carNames } = this.deps;
     const alpha = this.accumulator / STEP_SECONDS;
     const view: WorldView = buildWorldView(
       this.interpolator.sample(alpha),
       this.deps.sim.arena,
       localPlayerId,
+      carNames,
     );
     renderer.update(view, dtSeconds);
     audio?.update(view.cars, localPlayerId, clampAudioDelta(dtSeconds));

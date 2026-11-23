@@ -116,6 +116,7 @@ export interface CarView {
   readonly flags: number;
   readonly cargo: number;
   readonly isLocal: boolean;
+  readonly name: string;
 }
 
 export interface BillView {

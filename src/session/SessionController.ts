@@ -40,6 +40,7 @@ import { generatePlayerName, generateUniquePlayerName } from "./playerNames";
 import { hudStore, type HudSnapshot, type HudStore } from "../store/hudStore";
 import {
   lobbyStore,
+  type LobbyPlayer,
   peerErrorToMessage,
   reasonToMessage,
 } from "../store/lobbyStore";
@@ -124,6 +125,19 @@ const DEFAULT_DEPS: SessionDeps = {
   hud: hudStore,
   createAudio: () => new CarAudio(),
 };
+
+function buildCarNames(
+  humans: readonly LobbyPlayer[],
+  botCount: number,
+): ReadonlyMap<number, string> {
+  const names = new Map<number, string>();
+  for (const human of humans) names.set(human.pid, human.name);
+  const firstBotPid = humans.length;
+  for (let index = 0; index < botCount; index += 1) {
+    names.set(firstBotPid + index, `CPU ${index + 1}`);
+  }
+  return names;
+}
 
 function buildSoloSetup(options: SoloMatchOptions): MatchSetup {
   const botPlayerIds = Array.from(
@@ -256,6 +270,7 @@ export class SessionController {
       renderer,
       inputSources,
       localPlayerId: LOCAL_PLAYER_ID,
+      carNames: buildCarNames([], options.botCount),
       hud: this.deps.hud,
       audio: this.audio,
       onFinished: (snapshot, winnerPids) => this.endMatch(snapshot, winnerPids),
@@ -375,6 +390,7 @@ export class SessionController {
       `[mp][host] startMatch humans=${humans.length} bots=${bots.length}`,
     );
     const seed = crypto.getRandomValues(new Uint32Array(1))[0] ?? 0;
+    const carNames = buildCarNames(snapshot.players, bots.length);
     this.matchHost = new MatchHost({
       transport,
       now: () => performance.now(),
@@ -388,6 +404,7 @@ export class SessionController {
       botPids: bots,
       botDifficulty: "normal",
       gameMode: snapshot.gameMode,
+      names: carNames,
       matchSeconds: gameConfig.matchSeconds,
       pidForPeer: (peerId) => this.lobbyRoster?.pidForPeer(peerId),
       peerIdForPid: (pid) => this.lobbyRoster?.peerIdForPid(pid),
@@ -525,7 +542,12 @@ export class SessionController {
     this.hostRenderMs = nowMs;
     const snapshot = host.snapshot();
     renderer.update(
-      buildWorldView(host.renderSnapshot(), host.arena, HOST_PID),
+      buildWorldView(
+        host.renderSnapshot(),
+        host.arena,
+        HOST_PID,
+        host.carNames,
+      ),
       dtSeconds,
     );
     if (this.hudThrottle.tick(dtSeconds)) {

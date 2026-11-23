@@ -167,6 +167,7 @@ describe("CarAudio without AudioContext", () => {
         flags: CAR_FLAG.boosting,
         cargo: 0,
         isLocal: true,
+        name: "",
       },
       {
         pid: 1,
@@ -177,6 +178,7 @@ describe("CarAudio without AudioContext", () => {
         flags: 0,
         cargo: 0,
         isLocal: false,
+        name: "",
       },
     ];
     expect(() => {

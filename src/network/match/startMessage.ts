@@ -2,6 +2,7 @@ import { spawnFor } from "../../config/spawnPoints";
 import type { MatchSetup } from "../../types/game";
 import {
   PROTOCOL_VERSION,
+  type NameItem,
   type ReadyMessage,
   type SpawnItem,
   type StartMessage,
@@ -18,7 +19,11 @@ function spawnItemsFor(setup: MatchSetup): SpawnItem[] {
     });
 }
 
-export function buildStart(setup: MatchSetup, matchId: number): StartMessage {
+export function buildStart(
+  setup: MatchSetup,
+  matchId: number,
+  names: ReadonlyMap<number, string> = new Map(),
+): StartMessage {
   return {
     v: PROTOCOL_VERSION,
     t: "start",
@@ -31,6 +36,7 @@ export function buildStart(setup: MatchSetup, matchId: number): StartMessage {
       gameMode: setup.gameMode,
     },
     spawns: spawnItemsFor(setup),
+    names: [...names.entries()].map(([pid, name]): NameItem => [pid, name]),
   };
 }
 

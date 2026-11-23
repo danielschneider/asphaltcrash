@@ -115,7 +115,7 @@ Crashfest cars do not respawn. A destroyed car remains out for the rest of the m
 
 ### 5.4 Hit feedback
 - Impulse above `hitEventThreshold` (0.5) → `hit` event → spark effect at contact point and short camera shake (≤ 4 px, 150 ms).
-- Health bar above each car.
+- Player name above each car (not the own car). Upright, white, always readable. Truncated to 20 characters.
 - Attack feed on HUD: last 3 events as text (for example "A destroyed B").
 
 ---
@@ -273,6 +273,9 @@ Implemented with the browser Web Audio API only (no audio library). Pure math li
 | `wallRestitution` | 0.45 | Wall body restitution (bounciness); also used for the wall deflection of car velocity |
 | `carWidth` | 48 | Car body width in px |
 | `carHeight` | 24 | Car body height in px |
+| `carNameMaxChars` | 20 | Max characters of a car name label |
+| `carNameFontSize` | 12 | Car name label font size in px |
+| `carNameGap` | 6 | Gap in px between car top edge and name label |
 | `carMass` | 1.2 | Matter.js body mass (see gameConfig comment) |
 | `carFriction` | 0.05 | Car body friction |
 | `carRestitution` | 0.35 | Car body restitution (bounciness) |

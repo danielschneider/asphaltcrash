@@ -243,7 +243,7 @@ Engine settings (verified against matter-js 0.20.0 `Engine.create` defaults):
   ├── worldContainer          (camera transform applied here only)
   │   ├── arenaLayer          (static floor, walls, home bases)
   │   ├── billLayer           (pooled sprites)
-  │   ├── carLayer            (pooled car containers: body, shadow, health bar)
+   │   ├── carLayer            (pooled car containers: body, shadow, name label)
   │   └── effectsLayer        (ParticleContainer for smoke and sparks; capped pool)
   └── (HUD is React DOM, not Pixi)
   ```

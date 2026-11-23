@@ -64,6 +64,9 @@ export interface GameConfigShape {
   readonly wallThickness: number;
   readonly carWidth: number;
   readonly carHeight: number;
+  readonly carNameMaxChars: number;
+  readonly carNameFontSize: number;
+  readonly carNameGap: number;
   readonly carMass: number;
   readonly baseWidth: number;
   readonly baseHeight: number;
@@ -187,6 +190,9 @@ export const gameConfig = {
   wallThickness: 40,
   carWidth: 48,
   carHeight: 24,
+  carNameMaxChars: 20,
+  carNameFontSize: 12,
+  carNameGap: 6,
   // Matter.js body mass. Matches the default density (0.001) times car area (48 * 24 = 1152), rounded.
   carMass: 1.2,
   baseWidth: 160,

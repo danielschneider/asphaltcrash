@@ -22,6 +22,7 @@ import {
   type ReadyMessage,
   type RejectReason,
   type ScoreItem,
+  type NameItem,
   type SnapBillItem,
   type SnapCarItem,
   type SnapMessage,
@@ -58,6 +59,7 @@ const FLAGS_MAX = 31;
 const SEQ_MAX = Number.MAX_SAFE_INTEGER;
 const TOKEN_PATTERN = /^[A-Za-z0-9]{16}$/;
 const CONTROL_CHAR_PATTERN = /\p{Cc}/u;
+const NAME_ITEM_MAX_CHARS = 16;
 
 type Dict = Record<string, unknown>;
 
@@ -637,6 +639,10 @@ export function validateStart(raw: unknown): ParseResult<StartMessage> {
   if (!spawns.ok) {
     return spawns;
   }
+  const names = validateNames(raw.names);
+  if (!names.ok) {
+    return names;
+  }
   return {
     ok: true,
     value: {
@@ -646,8 +652,30 @@ export function validateStart(raw: unknown): ParseResult<StartMessage> {
       seed: raw.seed,
       cfg: { ...cfg.value, gameMode },
       spawns: spawns.value,
+      names: names.value,
     },
   };
+}
+
+function validateNames(raw: unknown): ParseResult<readonly NameItem[]> {
+  if (raw === undefined) {
+    return { ok: true, value: [] };
+  }
+  return validateList(raw, gameConfig.maxCars, validateNameItem, "field:names");
+}
+
+function validateNameItem(raw: unknown): ParseResult<NameItem> {
+  if (!Array.isArray(raw) || raw.length !== 2) {
+    return fail("field:name-item");
+  }
+  const [pid, name] = raw;
+  if (!isValidPid(pid)) {
+    return fail("pid-range");
+  }
+  if (typeof name !== "string" || name.length > NAME_ITEM_MAX_CHARS) {
+    return fail("field:name");
+  }
+  return { ok: true, value: [pid, name] };
 }
 
 export function validateReady(

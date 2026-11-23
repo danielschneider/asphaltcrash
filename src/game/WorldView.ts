@@ -1,9 +1,12 @@
 import type { ArenaView, MatchSnapshot, WorldView } from "../types/game";
 
+const NO_NAMES: ReadonlyMap<number, string> = new Map();
+
 export function buildWorldView(
   snapshot: MatchSnapshot,
   arena: ArenaView,
   localPlayerId: number,
+  names: ReadonlyMap<number, string> = NO_NAMES,
 ): WorldView {
   return {
     cars: snapshot.cars.map((car) => ({
@@ -15,6 +18,7 @@ export function buildWorldView(
       flags: car.flags,
       cargo: car.cargo,
       isLocal: car.pid === localPlayerId,
+      name: names.get(car.pid) ?? "",
     })),
     bills: snapshot.bills.map((bill) => ({
       id: bill.id,

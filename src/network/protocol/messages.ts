@@ -155,6 +155,8 @@ export type SpawnItem = readonly [
   angle: number,
 ];
 
+export type NameItem = readonly [pid: number, name: string];
+
 export type ScoreItem = readonly [
   pid: number,
   cash: number,
@@ -202,6 +204,7 @@ export interface StartMessage extends ControlEnvelope<"start"> {
   readonly seed: number;
   readonly cfg: MatchConfigShape;
   readonly spawns: readonly SpawnItem[];
+  readonly names?: readonly NameItem[];
 }
 
 export interface ReadyMessage extends ControlEnvelope<"ready"> {

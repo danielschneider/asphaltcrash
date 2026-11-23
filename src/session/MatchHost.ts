@@ -47,6 +47,7 @@ export interface MatchHostDeps {
   readonly botDifficulty: BotDifficulty;
   readonly matchSeconds: number;
   readonly gameMode: GameMode;
+  readonly names?: ReadonlyMap<number, string>;
   readonly pidForPeer: (peerId: PeerId) => number | undefined;
   readonly peerIdForPid: (pid: number) => PeerId | undefined;
   readonly hostInput: () => InputFrame;
@@ -104,6 +105,10 @@ export class MatchHost {
     return this.sim.arena;
   }
 
+  get carNames(): ReadonlyMap<number, string> {
+    return this.deps.names ?? new Map();
+  }
+
   get gameMode(): GameMode {
     return this.sim.gameMode;
   }
@@ -121,7 +126,7 @@ export class MatchHost {
     if (this.phaseValue !== MATCH_HOST_PHASE.idle) return;
     this.matchId = this.deps.newMatchId();
     this.phaseValue = MATCH_HOST_PHASE.waiting;
-    const message = buildStart(this.setup, this.matchId);
+    const message = buildStart(this.setup, this.matchId, this.carNames);
     console.log(
       `[mp][host] start sent clients=${this.clientPids.length} cars=${this.sim.snapshot().cars.length}`,
     );

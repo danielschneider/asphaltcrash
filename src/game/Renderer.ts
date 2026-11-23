@@ -4,6 +4,7 @@ import {
   Graphics,
   Particle,
   ParticleContainer,
+  Text,
   Texture,
 } from "pixi.js";
 import { gameConfig } from "../config/gameConfig";
@@ -30,6 +31,7 @@ import {
 import { generateGroundLayout } from "./ground/groundLayout";
 import { createRng, type Rng } from "./sim/Rng";
 import { damageFromHealth, smoothDamage } from "./shaders/carDamage";
+import { truncateCarName } from "./carLabel";
 
 export interface WorldRenderer {
   update(view: WorldView, dtSeconds: number): void;
@@ -53,8 +55,6 @@ const CURB_EDGE_WIDTH = 2;
 
 const WINDSHIELD_COLOR = 0x9fd8ff;
 const CARGO_COLOR = 0xffd166;
-const HEALTH_BG_COLOR = 0x000000;
-const HEALTH_FG_COLOR = 0x7ed957;
 const BILL_COLORS = {
   10: 0x7ccf6b,
   20: 0x4aa3df,
@@ -62,9 +62,9 @@ const BILL_COLORS = {
 } as const satisfies Record<BillValue, number>;
 const BILL_STRIPE_COLOR = 0x1d3b1f;
 const DESTROYED_ALPHA = 0.3;
-const HEALTH_BAR_WIDTH = 40;
-const HEALTH_BAR_HEIGHT = 4;
-const HEALTH_BAR_GAP = 8;
+const NAME_LABEL_COLOR = 0xffffff;
+const NAME_LABEL_STROKE_COLOR = 0x000000;
+const NAME_LABEL_STROKE_WIDTH = 3;
 const LOW_HEALTH_RATIO = 0.5;
 const SMOKE_SPAWN_CHANCE = 0.25;
 const SMOKE_LIFE_SECONDS = 0.8;
@@ -82,11 +82,11 @@ interface CarSlot {
   readonly body: Graphics;
   readonly marks: CarDamageMarkLayer;
   readonly cargoDot: Graphics;
-  readonly bar: Container;
-  readonly barFill: Graphics;
+  readonly label: Text;
   readonly damageFilter: CarDamageFilter | null;
   pid: number;
   damage: number;
+  name: string;
 }
 
 interface BillSlot {
@@ -252,29 +252,34 @@ function createCarPool(layer: Container): CarSlot[] {
       : null;
     if (damageFilter) body.filters = [damageFilter.filter];
     root.addChild(body, marks.container, cargoDot);
-    const bar = new Container();
-    const barBg = new Graphics();
-    barBg
-      .rect(0, -HEALTH_BAR_HEIGHT / 2, HEALTH_BAR_WIDTH, HEALTH_BAR_HEIGHT)
-      .fill({ color: HEALTH_BG_COLOR, alpha: 0.5 });
-    const barFill = new Graphics();
-    barFill
-      .rect(0, -HEALTH_BAR_HEIGHT / 2, HEALTH_BAR_WIDTH, HEALTH_BAR_HEIGHT)
-      .fill(HEALTH_FG_COLOR);
-    bar.addChild(barBg, barFill);
+    const label = new Text({
+      text: "",
+      style: {
+        fontFamily: "sans-serif",
+        fontSize: gameConfig.carNameFontSize,
+        fontWeight: "bold",
+        fill: NAME_LABEL_COLOR,
+        stroke: {
+          color: NAME_LABEL_STROKE_COLOR,
+          width: NAME_LABEL_STROKE_WIDTH,
+          join: "round",
+        },
+      },
+      anchor: { x: 0.5, y: 1 },
+    });
+    label.visible = false;
     root.visible = false;
-    bar.visible = false;
-    layer.addChild(root, bar);
+    layer.addChild(root, label);
     slots.push({
       root,
       body,
       marks,
       cargoDot,
-      bar,
-      barFill,
+      label,
       damageFilter,
       pid: -1,
       damage: 0,
+      name: "",
     });
   }
   return slots;
@@ -345,7 +350,7 @@ function updateCars(
     if (!slot) continue;
     if (!car) {
       slot.root.visible = false;
-      slot.bar.visible = false;
+      slot.label.visible = false;
       continue;
     }
     if (slot.pid !== car.pid) drawCarBody(slot, car.pid);
@@ -366,20 +371,32 @@ function drawCarBody(slot: CarSlot, pid: number): void {
 
 function updateCarSlot(slot: CarSlot, car: CarView, dt: number): void {
   const isDestroyed = (car.flags & CAR_FLAG.destroyed) !== 0;
-  const hpRatio = clamp01(car.hp / gameConfig.maxHealth);
   slot.root.visible = true;
   slot.root.position.set(car.x, car.y);
   slot.root.rotation = car.angle;
   slot.root.alpha = isDestroyed ? DESTROYED_ALPHA : 1;
   slot.cargoDot.visible = car.cargo > 0;
-  slot.bar.visible = !isDestroyed;
   slot.marks.container.visible = !isDestroyed;
-  slot.bar.position.set(
-    car.x - HEALTH_BAR_WIDTH / 2,
-    car.y - gameConfig.carHeight / 2 - HEALTH_BAR_GAP,
-  );
-  slot.barFill.scale.x = hpRatio;
+  updateCarLabel(slot, car, isDestroyed);
   updateCarDamage(slot, car, dt);
+}
+
+function updateCarLabel(
+  slot: CarSlot,
+  car: CarView,
+  isDestroyed: boolean,
+): void {
+  const visible = !car.isLocal && !isDestroyed && car.name.length > 0;
+  slot.label.visible = visible;
+  if (!visible) return;
+  if (slot.name !== car.name) {
+    slot.name = car.name;
+    slot.label.text = truncateCarName(car.name, gameConfig.carNameMaxChars);
+  }
+  slot.label.position.set(
+    car.x,
+    car.y - gameConfig.carHeight / 2 - gameConfig.carNameGap,
+  );
 }
 
 function updateCarDamage(slot: CarSlot, car: CarView, dt: number): void {

@@ -3,7 +3,7 @@ import type { GameMode } from "../types/game";
 export type LobbyRole = "host" | "client" | "none";
 export type LobbyStatus = "idle" | "connecting" | "ready" | "error";
 
-interface LobbyPlayer {
+export interface LobbyPlayer {
   readonly pid: number;
   readonly name: string;
 }

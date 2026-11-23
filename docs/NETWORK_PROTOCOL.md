@@ -61,7 +61,7 @@ Field names are short to reduce bytes. Documented mapping is normative.
 | `reject` | H→C | `reason`: `version` \| `full` \| `running` \| `invalid` | Host closes connection afterwards. |
 | `lobby` | H→C | `players`: `[pid, name, kind, ready]`, `bots`: int, `cfg`: partial config | Broadcast on change. `kind` = `h` (human) or `b` (bot). |
 | `cfg` | H→C | `cfg`: MatchConfig subset | Included in `lobby`. Separate type reserved for v2. |
-| `start` | H→C | `mid` (matchId), `seed` (uint32), `cfg` (MatchConfig, includes `gameMode`: `cash` or `crashfest`), `spawns`: `[pid, x, y, angle][]`, `bills`: none (generated from seed) | `gameMode` defaults to `cash` when absent. Crashfest uses an untimed 1600 × 1200 arena with no bases or bills. Match begins after all `ready`s or 5 s timeout. |
+| `start` | H→C | `mid` (matchId), `seed` (uint32), `cfg` (MatchConfig, includes `gameMode`: `cash` or `crashfest`), `spawns`: `[pid, x, y, angle][]`, `names`: `[pid, name][]` (optional, for car name labels), `bills`: none (generated from seed) | `gameMode` defaults to `cash` when absent. `names` defaults to empty when absent. Crashfest uses an untimed 1600 × 1200 arena with no bases or bills. Match begins after all `ready`s or 5 s timeout. |
 | `ready` | C→H | `mid` | Client loaded arena. |
 | `pause` | H→C | `on`: bool, `why`: `host` \| `player` | Host paused (host hidden) or a player paused. |
 | `ev` | H→C | `k` (event kind), `d` (payload) | See 4.3. Reliable. |
