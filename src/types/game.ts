@@ -147,6 +147,7 @@ export interface ArenaView {
   readonly height: number;
   readonly wallThickness: number;
   readonly bases: readonly BaseView[];
+  readonly isElimination?: boolean;
 }
 
 export interface WorldView {

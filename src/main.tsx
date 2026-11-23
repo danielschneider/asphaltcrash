@@ -11,8 +11,12 @@ if (!rootElement) {
 const preventZoomGesture = (event: Event): void => {
   event.preventDefault();
 };
-document.addEventListener("gesturestart", preventZoomGesture, { passive: false });
-document.addEventListener("gesturechange", preventZoomGesture, { passive: false });
+document.addEventListener("gesturestart", preventZoomGesture, {
+  passive: false,
+});
+document.addEventListener("gesturechange", preventZoomGesture, {
+  passive: false,
+});
 document.addEventListener("gestureend", preventZoomGesture, { passive: false });
 document.addEventListener(
   "touchmove",

@@ -16,7 +16,12 @@ import {
   type CarView,
   type WorldView,
 } from "../types/game";
-import { createCamera, stepCamera, type CameraState } from "./Camera";
+import {
+  createCamera,
+  fitZoomForArena,
+  stepCamera,
+  type CameraState,
+} from "./Camera";
 import {
   createCarDamageFilter,
   createCarDamageMarkLayer,
@@ -549,23 +554,43 @@ function updateCamera(
   dt: number,
 ): void {
   const local = view.cars.find((car) => car.isLocal);
-  const target = local
-    ? { x: local.x, y: local.y, speedFraction: speedFraction(state, local, dt) }
-    : { x: arena.width / 2, y: arena.height / 2, speedFraction: 0 };
-  if (local) state.prevLocal = { x: local.x, y: local.y };
-  state.camera = stepCamera(
-    state.camera,
-    target,
-    dt,
-    { width: app.screen.width, height: app.screen.height },
-    arena,
-  );
+  const isSpectating =
+    arena.isElimination === true &&
+    local !== undefined &&
+    (local.flags & CAR_FLAG.destroyed) !== 0;
+  const viewport = { width: app.screen.width, height: app.screen.height };
+  const target = isSpectating
+    ? {
+        x: arena.width / 2,
+        y: arena.height / 2,
+        speedFraction: 0,
+        fitZoom: fitZoomForArena(viewport, arena),
+      }
+    : localTarget(state, local, arena, dt);
+  if (local && !isSpectating) state.prevLocal = { x: local.x, y: local.y };
+  state.camera = stepCamera(state.camera, target, dt, viewport, arena);
   const zoom = state.camera.zoom;
   world.scale.set(zoom);
   world.position.set(
     app.screen.width / 2 - state.camera.x * zoom,
     app.screen.height / 2 - state.camera.y * zoom,
   );
+}
+
+function localTarget(
+  state: RenderState,
+  local: CarView | undefined,
+  arena: ArenaView,
+  dt: number,
+): { x: number; y: number; speedFraction: number } {
+  if (!local) {
+    return { x: arena.width / 2, y: arena.height / 2, speedFraction: 0 };
+  }
+  return {
+    x: local.x,
+    y: local.y,
+    speedFraction: speedFraction(state, local, dt),
+  };
 }
 
 function speedFraction(state: RenderState, car: CarView, dt: number): number {

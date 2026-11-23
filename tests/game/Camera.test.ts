@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { gameConfig } from "../../src/config/gameConfig";
 import {
   createCamera,
+  fitZoomForArena,
   stepCamera,
   zoomForSpeed,
   type CameraState,
@@ -163,5 +164,58 @@ describe("stepCamera", () => {
     );
     expect(next.x).toBe(ARENA.width / 2);
     expect(next.y).toBe(ARENA.height / 2);
+  });
+});
+
+describe("fitZoomForArena", () => {
+  it("fits the whole arena in a landscape viewport with the fit margin", () => {
+    const arena = { width: 1600, height: 1200 };
+    const zoom = fitZoomForArena({ width: 1600, height: 1000 }, arena);
+    expect(zoom).toBeCloseTo(
+      Math.min(1.0, 1000 / 1200) * gameConfig.crashfestFitMargin,
+      10,
+    );
+    expect(arena.width * zoom).toBeLessThanOrEqual(1600);
+    expect(arena.height * zoom).toBeLessThanOrEqual(1000);
+  });
+
+  it("is limited by width in a portrait viewport", () => {
+    const arena = { width: 1600, height: 1200 };
+    const zoom = fitZoomForArena({ width: 800, height: 1400 }, arena);
+    expect(zoom).toBeCloseTo(0.5 * gameConfig.crashfestFitMargin, 10);
+  });
+});
+
+describe("stepCamera with fitZoom", () => {
+  const ARENA_FIT = { width: 1600, height: 1200 };
+  const FIT_VIEWPORT = { width: 1600, height: 1000 };
+
+  it("settles on the fit zoom and arena centre", () => {
+    const fitZoom = fitZoomForArena(FIT_VIEWPORT, ARENA_FIT);
+    let state: CameraState = { x: 100, y: 100, zoom: 1.5 };
+    for (let i = 0; i < SETTLE_STEPS; i += 1) {
+      state = stepCamera(
+        state,
+        { x: 100, y: 100, speedFraction: 1, fitZoom },
+        1 / 60,
+        FIT_VIEWPORT,
+        ARENA_FIT,
+      );
+    }
+    expect(state.zoom).toBeCloseTo(fitZoom, 4);
+    expect(state.x).toBeCloseTo(800, 3);
+    expect(state.y).toBeCloseTo(600, 3);
+  });
+
+  it("ignores speed when fitZoom is set", () => {
+    const next = stepCamera(
+      { x: 800, y: 600, zoom: 1 },
+      { x: 800, y: 600, speedFraction: 0, fitZoom: 0.4 },
+      1 / 60,
+      FIT_VIEWPORT,
+      ARENA_FIT,
+    );
+    expect(next.zoom).toBeLessThan(1);
+    expect(next.zoom).toBeGreaterThan(0.4);
   });
 });

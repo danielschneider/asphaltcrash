@@ -31,5 +31,6 @@ export function buildArenaView(
         : gameConfig.arenaHeight,
     wallThickness: gameConfig.wallThickness,
     bases,
+    isElimination: gameMode === "crashfest",
   };
 }

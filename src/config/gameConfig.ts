@@ -60,6 +60,7 @@ export interface GameConfigShape {
   readonly cameraZoomMoving: number;
   readonly cameraFollowLerp: number;
   readonly cameraZoomOutLerp: number;
+  readonly crashfestFitMargin: number;
   readonly arenaWidth: number;
   readonly arenaHeight: number;
   readonly crashfestArenaWidth: number;
@@ -194,6 +195,7 @@ export const gameConfig = {
   cameraZoomMoving: 0.55,
   cameraFollowLerp: 6,
   cameraZoomOutLerp: 10,
+  crashfestFitMargin: 0.92,
   arenaWidth: ARENA_WIDTH,
   arenaHeight: ARENA_HEIGHT,
   crashfestArenaWidth: 1600,

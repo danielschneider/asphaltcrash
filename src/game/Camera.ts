@@ -11,6 +11,7 @@ export interface CameraTarget {
   readonly x: number;
   readonly y: number;
   readonly speedFraction: number;
+  readonly fitZoom?: number;
 }
 
 export interface CameraViewport {
@@ -31,6 +32,17 @@ export function createCamera(arena: CameraBounds | ArenaView): CameraState {
   };
 }
 
+export function fitZoomForArena(
+  viewport: CameraViewport,
+  arena: CameraBounds,
+): number {
+  const fit = Math.min(
+    viewport.width / arena.width,
+    viewport.height / arena.height,
+  );
+  return fit * gameConfig.crashfestFitMargin;
+}
+
 export function zoomForSpeed(speedFraction: number): number {
   const t = clamp01(speedFraction);
   return (
@@ -48,7 +60,7 @@ export function stepCamera(
 ): CameraState {
   const dt = Math.max(0, dtSeconds);
   const blend = 1 - Math.exp(-gameConfig.cameraFollowLerp * dt);
-  const targetZoom = zoomForSpeed(target.speedFraction);
+  const targetZoom = target.fitZoom ?? zoomForSpeed(target.speedFraction);
   // Lower zoom value = wider view. Widening (speeding up) uses the faster rate.
   const zoomRate =
     targetZoom < state.zoom

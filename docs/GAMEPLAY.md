@@ -146,7 +146,7 @@ Crashfest uses a 1600 × 1200 px arena. Its spawn positions are scaled from the 
 - Zoom: closer at rest, further out at speed (GTA-like). Target = `cameraZoomRest` 1.5 × (`cameraZoomMoving` 0.55 / 1.5)^speedFraction, a geometric blend so each speed step changes the visible area by the same proportion. speedFraction = car speed / (`maxForwardSpeed` + `boostSpeedBonus`), clamped to 0..1. Zoom is a scale factor: larger = closer. Smoothed with `cameraFollowLerp` (6/s) when closing in (braking) and with `cameraZoomOutLerp` (10/s) when widening the view (speeding up), so the view opens quickly at speed and settles slowly when braking.
 - Visible area at full speed is about 2.7× the rest area (1.5 / 0.55).
 - Clamped to arena bounds using the visible area in world units (viewport / zoom). If the viewport is larger than the arena, the arena is centered.
-- Spectator mode (solo host with no local car, not in v1).
+- Spectating (Crashfest only): once the local car is destroyed (no respawn), the camera stops following the wreck and fits the whole arena (`crashfestFitMargin` 0.92 of the largest zoom that fits the viewport), centred on the arena. Zoom eases with `cameraZoomOutLerp` / `cameraFollowLerp`. Only the full-field view; no cycling through other cars.
 
 ### 7.2 HUD (React DOM)
 | Element | Location | Update |
@@ -265,6 +265,7 @@ Implemented with the browser Web Audio API only (no audio library). Pure math li
 | `cameraZoomMoving` | 0.55 | Camera zoom factor at full speed, section 7.1 |
 | `cameraFollowLerp` | 6 | Camera follow and zoom-in smoothing rate per second, section 7.1 |
 | `cameraZoomOutLerp` | 10 | Camera zoom-out (widen view) smoothing rate per second, section 7.1 |
+| `crashfestFitMargin` | 0.92 | Fraction of the fit-to-viewport zoom used when spectating a Crashfest arena after elimination (section 7.1) |
 | `arenaWidth` | 3200 | Arena width in world units (px) |
 | `arenaHeight` | 2400 | Arena height in world units (px) |
 | `crashfestArenaWidth` | 1600 | Crashfest arena width in world units (px) |
