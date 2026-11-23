@@ -46,6 +46,7 @@ const REJECT_MESSAGES: ReadonlyMap<string, string> = new Map([
   ["running", "Match already running"],
   ["timeout", "Connection failed"],
   ["connect-error", "Connection error"],
+  ["host-left", "Host left the room"],
 ]);
 
 const PEER_ERROR_MESSAGES: ReadonlyMap<string, string> = new Map([

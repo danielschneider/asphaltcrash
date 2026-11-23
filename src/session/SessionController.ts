@@ -182,6 +182,7 @@ export class SessionController {
   private unsubscribeHud: (() => void) | null = null;
   private startToken = 0;
   private lobbyTransport: PeerTransport | null = null;
+  private lobbyIsHost = false;
   private handshakeClient: HandshakeClient | null = null;
   private lobbyUnsubscribers: Unsubscribe[] = [];
   private connectTimer: unknown = null;
@@ -189,6 +190,7 @@ export class SessionController {
   private matchHost: MatchHost | null = null;
   private matchClient: MatchClient | null = null;
   private matchFrameId: number | null = null;
+  private matchUnsubscribe: Unsubscribe | null = null;
   private matchRenderer: WorldRenderer | null = null;
   private matchRendererReady: Promise<void> | null = null;
   private matchSurface: HTMLElement | null = null;
@@ -307,6 +309,7 @@ export class SessionController {
       (taken) => generateUniquePlayerName(taken),
     );
     this.lobbyRoster = roster;
+    this.lobbyIsHost = true;
     this.lobbyTransport = new PeerTransport({
       role: "host",
       peerId: hostPeerIdFor(code),
@@ -390,11 +393,9 @@ export class SessionController {
       onFinished: (scores, winners) =>
         this.finishNetworkMatch(scores, HOST_PID, winners, snapshot.gameMode),
     });
-    this.lobbyUnsubscribers.push(
-      transport.onMessage((msg: NetworkMessage, from) => {
-        this.matchHost?.handleInbound(msg, from);
-      }),
-    );
+    this.matchUnsubscribe = transport.onMessage((msg: NetworkMessage, from) => {
+      this.matchHost?.handleInbound(msg, from);
+    });
     this.hostRenderMs = null;
     this.setState(SESSION_STATE.playingNetwork);
     this.matchHost.start();
@@ -500,9 +501,7 @@ export class SessionController {
   ): void {
     if (this.state !== SESSION_STATE.playingNetwork) return;
     console.log("[mp][match] finishNetworkMatch");
-    this.cancelMatchFrame();
-    this.matchClient?.stop();
-    this.matchClient = null;
+    this.resetMatchState();
     this.deps.hud.push(buildEndHud(scores, localPid, gameMode, winnerPids));
     this.setState(SESSION_STATE.endedNetwork);
   }
@@ -534,14 +533,29 @@ export class SessionController {
     );
   }
 
-  private stopMatch(): void {
+  // Lobby transport and roster survive a finished match; only per-match state is cleared here.
+  private resetMatchState(): void {
     this.cancelMatchFrame();
+    this.matchUnsubscribe?.();
+    this.matchUnsubscribe = null;
     this.matchHost = null;
-    this.releaseMatchRenderer();
-    this.pendingStart = null;
+    this.hostRenderMs = null;
     this.clientStart = null;
     this.clientStartSeen = false;
-    this.hostRenderMs = null;
+    this.pendingStart = null;
+    this.releaseMatchRenderer();
+  }
+
+  returnToLobby(): void {
+    if (
+      this.state !== SESSION_STATE.endedNetwork ||
+      this.lobbyTransport === null
+    ) {
+      return;
+    }
+    this.setState(
+      this.lobbyIsHost ? SESSION_STATE.hostingLobby : SESSION_STATE.joinedLobby,
+    );
   }
 
   joinRoom(code: string, name: string): void {
@@ -560,6 +574,7 @@ export class SessionController {
     const handshake = attachHandshakeClient(transport, hostPeerId);
     const token = createHelloToken(this.lobbyDeps.randomBytes);
     this.lobbyTransport = transport;
+    this.lobbyIsHost = false;
     this.handshakeClient = handshake;
     this.lobbyUnsubscribers = [
       transport.onPeerChange((event) => {
@@ -568,6 +583,11 @@ export class SessionController {
         }
         if (event.kind === "open") {
           sendHello(transport, name.trim(), token);
+        } else if (
+          event.kind === "close" &&
+          this.state !== SESSION_STATE.idle
+        ) {
+          this.failLobby("host-left");
         } else if (
           event.kind === "error" &&
           this.state === SESSION_STATE.joining
@@ -595,7 +615,7 @@ export class SessionController {
 
   backToIdle(): void {
     this.startToken += 1;
-    this.stopMatch();
+    this.resetMatchState();
     this.detachHud();
     this.engine?.dispose();
     this.engine = null;
@@ -668,6 +688,7 @@ export class SessionController {
   }
 
   private failLobby(reason: string, detail?: string): void {
+    this.resetMatchState();
     this.teardownLobby();
     lobbyStore.set({
       role: "none",
@@ -686,6 +707,7 @@ export class SessionController {
 
   private teardownLobby(): void {
     this.clearConnectTimer();
+    this.lobbyIsHost = false;
     for (const unsubscribe of this.lobbyUnsubscribers) {
       unsubscribe();
     }

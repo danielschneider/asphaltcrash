@@ -122,6 +122,81 @@ describe("client start before match surface exists", () => {
   });
 });
 
+describe("network match lifecycle after finish", () => {
+  let hub: FakePeerHub;
+
+  beforeEach(() => {
+    lobbyStore.reset();
+    hub = new FakePeerHub();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  async function runMatchToEnd(
+    host: FrameHarness,
+    client: FrameHarness,
+  ): Promise<void> {
+    host.controller.setLobbyBotCount(1);
+    await client.controller.attachMatchRenderer({} as HTMLElement);
+    host.controller.startMatch();
+    await flush();
+    const hostLoop = host.frames.at(-1);
+    const start = performance.now();
+    for (let elapsed = 0; elapsed <= 200 * 1000; elapsed += 250) {
+      hostLoop?.(start + elapsed);
+    }
+    await flush();
+  }
+
+  it("returns host and client to the lobby and allows a second match", async () => {
+    const { host, client } = await connectHostAndClient(hub);
+    await runMatchToEnd(host, client);
+    expect(host.controller.getState()).toBe(SESSION_STATE.endedNetwork);
+    expect(client.controller.getState()).toBe(SESSION_STATE.endedNetwork);
+
+    host.controller.returnToLobby();
+    client.controller.returnToLobby();
+    expect(host.controller.getState()).toBe(SESSION_STATE.hostingLobby);
+    expect(client.controller.getState()).toBe(SESSION_STATE.joinedLobby);
+
+    host.controller.startMatch();
+    await flush();
+    expect(host.controller.getState()).toBe(SESSION_STATE.playingNetwork);
+    host.controller.backToIdle();
+    client.controller.backToIdle();
+  });
+
+  it("starts the client again when the host begins a second match", async () => {
+    const startSpy = vi.spyOn(MatchClient.prototype, "start");
+    const { host, client } = await connectHostAndClient(hub);
+    await runMatchToEnd(host, client);
+    host.controller.returnToLobby();
+    client.controller.returnToLobby();
+
+    host.controller.startMatch();
+    await flush();
+    await client.controller.attachMatchRenderer({} as HTMLElement);
+    expect(startSpy).toHaveBeenCalledTimes(2);
+    host.controller.backToIdle();
+    client.controller.backToIdle();
+  });
+
+  it("client shows host-left and returns to idle when the host closes the room", async () => {
+    const { host, client } = await connectHostAndClient(hub);
+    const errors: Array<string | null> = [];
+    const unsubscribe = lobbyStore.subscribe(() => {
+      errors.push(lobbyStore.getSnapshot().error);
+    });
+    host.controller.backToIdle();
+    await flush();
+    unsubscribe();
+    expect(client.controller.getState()).toBe(SESSION_STATE.idle);
+    expect(errors).toContain("Host left the room");
+  });
+});
+
 describe("host match renderer", () => {
   let hub: FakePeerHub;
 

@@ -321,12 +321,13 @@ State machine (`SessionController`):
 ```
 idle ──createRoom──► hosting(lobby) ──startMatch──► playing ──matchEnd──► ended ──backToLobby──► hosting(lobby)
 idle ──joinRoom──► joining ──accepted──► joined(lobby) ──start──► playing ──end──► ended ──► joined(lobby)
-playingNetwork ──match end (host finish or client end)──► endedNetwork ──Exit / backToIdle──► idle
+playingNetwork ──match end (host finish or client end)──► endedNetwork ──Back to lobby (returnToLobby)──► hostingLobby / joinedLobby
+endedNetwork ──Leave room (backToIdle)──► idle        (host closes the room; clients get "Host left the room")
 any playing ──disconnect(host)──► ended(hostLost)
 client playing ──disconnect(self, temporary)──► reconnecting(45 s) ──ok──► playing
                                                                      └─timeout──► ended(disconnected)
 ```
-- Network match end: `MatchHost.finish()` sends `end` (reliable) and calls `onFinished(scores)`. The controller stops the host frame loop and the client `MatchClient`, pushes end scores to `hudStore`, and enters `endedNetwork`. `MatchClient` calls `onEnd` on the same path, so clients leave the running state too. The host stops emitting snapshots after finish. Exit from `endedNetwork` tears down via `backToIdle()`.
+- Network match end: `MatchHost.finish()` sends `end` (reliable) and calls `onFinished(scores)`. The controller stops the host frame loop and the client `MatchClient`, pushes end scores to `hudStore`, and enters `endedNetwork`. `MatchClient` calls `onEnd` on the same path, so clients leave the running state too. The host stops emitting snapshots after finish. The lobby transport and roster stay open: `returnToLobby()` re-enters `hostingLobby` (host) or `joinedLobby` (client) and the host can start another match. `backToIdle()` is the only path that closes the room.
 - Host lobby: list of human players (max 4) with names and colors, game mode, bot count (0 to 4 bots, total cars ≤ 8), start button enabled with at least 1 car (solo) or at least 2 cars (multi). Decision: solo CPU mode allows 1 human + bots; multi requires ≥ 2 humans or 1 human + ≥ 1 bot.
 - Host decides arena seed and spawn order; sends in `start`.
 
@@ -490,6 +491,6 @@ ESLint config format: the config is `eslint.config.mjs`, not `eslint.config.ts`.
 | ADR-017 | Simulation seam: `MatchSimulation.step()` takes no args (fixed step), `setInput(pid)`, `MatchSnapshot` uses full names mapped to wire names in codec only | Accepted |
 | ADR-018 | Physics seam: only `Physics.ts` imports matter-js, plain contact events, impulse derived | Accepted |
 | ADR-019 | Renderer seam: `WorldView` input; `ParticleContainer` imported from `pixi.js` main entry (subpath has no .d.ts) | Accepted |
-| ADR-020 | `SessionController`: solo states only; network states are placeholders | Accepted |
+| ADR-020 | `SessionController`: solo states; network lobby and match states; `endedNetwork` returns to the lobby (`returnToLobby`) and keeps the room open | Accepted |
 | ADR-021 | Static checks: import-x (cycles, duplicates), sonarjs (complexity in sim core), knip (unused code), coverage-v8 (report only, no threshold); eslint-plugin-boundaries skipped (ETARGET `@boundaries/config@1.0.3`), dependency-cruiser installed but unused | Accepted |
 | ADR-022 | PeerJS 1.5.5 pinned; injected PeerFactory; one reliable plus one unreliable DataConnection per peer; JSON serialization; handshake in src/network/session | Accepted |

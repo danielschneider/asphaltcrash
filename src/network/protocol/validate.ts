@@ -10,6 +10,7 @@ import {
   MESSAGE_TYPES,
   PROTOCOL_VERSION,
   type ConfigValue,
+  type EndMessage,
   type EventMessage,
   type InputMessage,
   type LobbyKind,
@@ -20,6 +21,7 @@ import {
   type RejectMessage,
   type ReadyMessage,
   type RejectReason,
+  type ScoreItem,
   type SnapBillItem,
   type SnapCarItem,
   type SnapMessage,
@@ -424,6 +426,8 @@ export function validateMessage(raw: unknown): ParseResult<NetworkMessage> {
       return validateStart(raw);
     case "ready":
       return validateReadyEnvelope(raw);
+    case "end":
+      return validateEndEnvelope(raw);
     case undefined:
       return fail("field:t");
     default:
@@ -675,6 +679,43 @@ function validateReadyEnvelope(raw: Dict): ParseResult<ReadyMessage> {
     return fail("field:mid");
   }
   return { ok: true, value: { v: PROTOCOL_VERSION, t: "ready", mid: raw.mid } };
+}
+
+function isScoreItem(raw: unknown): raw is ScoreItem {
+  return (
+    Array.isArray(raw) &&
+    raw.length === 4 &&
+    raw.every((value) => isInt(value, 0, SCORE_MAX))
+  );
+}
+
+function validateEndEnvelope(raw: Dict): ParseResult<EndMessage> {
+  const envelopeError = checkEnvelope(raw, "end");
+  if (envelopeError !== null) {
+    return fail(envelopeError);
+  }
+  if (!isInt(raw.mid, 0, SEQ_MAX)) {
+    return fail("field:mid");
+  }
+  if (!Array.isArray(raw.scores) || !raw.scores.every(isScoreItem)) {
+    return fail("field:scores");
+  }
+  if (
+    !Array.isArray(raw.winners) ||
+    !raw.winners.every((pid) => isInt(pid, 0, SEQ_MAX))
+  ) {
+    return fail("field:winners");
+  }
+  return {
+    ok: true,
+    value: {
+      v: PROTOCOL_VERSION,
+      t: "end",
+      mid: raw.mid,
+      scores: raw.scores,
+      winners: raw.winners,
+    },
+  };
 }
 
 export function createInvalidCounter(): InvalidCounter {

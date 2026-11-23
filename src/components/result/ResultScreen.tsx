@@ -9,6 +9,7 @@ import {
 
 interface ResultScreenProps {
   readonly onBack: () => void;
+  readonly onReturnToLobby: (() => void) | undefined;
 }
 
 interface RankedScore {
@@ -32,12 +33,16 @@ function buildRanking(
   }));
 }
 
-export function ResultScreen({ onBack }: ResultScreenProps) {
+export function ResultScreen({ onBack, onReturnToLobby }: ResultScreenProps) {
   const snapshot = useHud();
   const ranking = buildRanking(snapshot.scores, snapshot.winnerPids);
 
   const handleBackToStart = (): void => {
     onBack();
+  };
+
+  const handleBackToLobby = (): void => {
+    onReturnToLobby?.();
   };
 
   return (
@@ -61,13 +66,28 @@ export function ResultScreen({ onBack }: ResultScreenProps) {
           </li>
         ))}
       </ol>
-      <button
-        type="button"
-        className="button button-primary"
-        onClick={handleBackToStart}
-      >
-        Back to start
-      </button>
+      {onReturnToLobby ? (
+        <>
+          <button
+            type="button"
+            className="button button-primary"
+            onClick={handleBackToLobby}
+          >
+            Back to lobby
+          </button>
+          <button type="button" className="button" onClick={handleBackToStart}>
+            Leave room
+          </button>
+        </>
+      ) : (
+        <button
+          type="button"
+          className="button button-primary"
+          onClick={handleBackToStart}
+        >
+          Back to start
+        </button>
+      )}
     </div>
   );
 }

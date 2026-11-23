@@ -29,13 +29,24 @@ export function App() {
     setSoloOptions(null);
   };
 
+  const handleReturnToLobby = (): void => {
+    sessionController.returnToLobby();
+  };
+
   if (
     sessionState === SESSION_STATE.ended ||
     sessionState === SESSION_STATE.endedNetwork
   ) {
     return (
       <div className="app-root">
-        <ResultScreen onBack={handleExit} />
+        <ResultScreen
+          onBack={handleExit}
+          onReturnToLobby={
+            sessionState === SESSION_STATE.endedNetwork
+              ? handleReturnToLobby
+              : undefined
+          }
+        />
       </div>
     );
   }
