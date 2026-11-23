@@ -15,6 +15,7 @@ export interface BotProfile {
   readonly reactionDelayTicks: number;
   readonly aimNoiseRad: number;
   readonly aggression: number;
+  readonly flankFactor: number;
 }
 
 export function profileFor(difficulty: BotDifficulty): BotProfile {
