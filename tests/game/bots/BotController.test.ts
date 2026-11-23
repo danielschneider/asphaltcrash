@@ -68,9 +68,9 @@ describe("BotController state selection", () => {
     expect(stateAfter(makeView({}, { enemies: [enemy] }))).toBe("Attack");
   });
 
-  it("evades a nearby enemy when hp is below 60", () => {
+  it("evades a nearby enemy when hp is below 40", () => {
     const enemy = { pid: 1, x: 1100, y: 800, hp: 100 };
-    expect(stateAfter(makeView({ hp: 50 }, { enemies: [enemy] }))).toBe(
+    expect(stateAfter(makeView({ hp: 30 }, { enemies: [enemy] }))).toBe(
       "Evade",
     );
   });

@@ -139,6 +139,7 @@ describe("network match lifecycle after finish", () => {
     client: FrameHarness,
   ): Promise<void> {
     host.controller.setLobbyBotCount(1);
+    host.controller.setLobbyGameMode("cash");
     await client.controller.attachMatchRenderer({} as HTMLElement);
     host.controller.startMatch();
     await flush();
@@ -214,6 +215,7 @@ describe("host match renderer", () => {
     const host = createHarness(hub);
     host.controller.createRoom("Host");
     host.controller.setLobbyBotCount(1);
+    host.controller.setLobbyGameMode("cash");
     host.controller.startMatch();
 
     const surface = {} as HTMLElement;

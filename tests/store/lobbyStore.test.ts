@@ -25,7 +25,7 @@ describe("createLobbyStore", () => {
       pid: null,
       players: [],
       bots: 0,
-      gameMode: "cash",
+      gameMode: "crashfest",
       botDifficulty: "normal",
       error: null,
     });

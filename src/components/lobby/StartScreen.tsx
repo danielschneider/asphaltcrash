@@ -33,7 +33,7 @@ function createSeed(): number {
 export function StartScreen({ onStart }: StartScreenProps) {
   const [botCount, setBotCount] = useState<number>(gameConfig.botDefaultCount);
   const [difficulty, setDifficulty] = useState<BotDifficulty>("normal");
-  const [gameMode, setGameMode] = useState<GameMode>("cash");
+  const [gameMode, setGameMode] = useState<GameMode>("crashfest");
   const joinLinkCode = useJoinLinkCode();
   const [mode, setMode] = useState<StartMode>(
     joinLinkCode !== "" ? START_MODES.multiplayer : START_MODES.solo,

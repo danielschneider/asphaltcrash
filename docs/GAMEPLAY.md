@@ -6,7 +6,7 @@ Open decisions reference `ANALYSIS.md` section 7 (Q-xx).
 ---
 
 ## 1. Match overview
-- Modes: **Cash Run** (timed cash collection) and **Crashfest** (untimed last-car-standing derby).
+- Modes: **Cash Run** (timed cash collection) and **Crashfest** (untimed last-car-standing derby). Crashfest is the default mode in solo and lobby setup.
 - Cash Run arena: enclosed rectangle, walls on all sides, optional interior static obstacles (none in v1 except walls and bases).
 - Players: 1–4 humans, 0–12 bots, total cars ≤ 16.
 - In Cash Run, each car has a **Home Base** (rectangle) placed next to its spawn point.
@@ -246,8 +246,8 @@ Implemented with the browser Web Audio API only (no audio library). Pure math li
 | `hostSilenceTimeoutMs` | 15000 | |
 | `matchReadyTimeoutMs` | 5000 | Host starts the match after this wait even if some clients have not sent `ready` |
 | `lobbyConnectTimeoutMs` | 10000 | Lobby join timeout in ms; join is reported as failed if no welcome arrives |
-| `botAttackRadiusPx` | 350 | Bot attacks an enemy within this distance (hp >= 30) |
-| `botEvadeRadiusPx` | 200 | Bot evades an enemy within this distance when hp < 60 and not attacking |
+| `botAttackRadiusPx` | 500 | Bot attacks an enemy within this distance (hp >= 15) |
+| `botEvadeRadiusPx` | 200 | Bot evades an enemy within this distance when hp < 40 and not attacking |
 | `timerWarningSeconds` | [30, 10, 0] | Remaining-time thresholds for timer warnings |
 | `fixedStepHz` | 60 | Fixed simulation step rate (1/60 s) |
 | `maxFrameDeltaMs` | 250 | Frame delta clamp for the Engine accumulator |

@@ -36,7 +36,7 @@ const EMPTY_LOBBY: LobbySnapshot = {
   pid: null,
   players: [],
   bots: 0,
-  gameMode: "cash",
+  gameMode: "crashfest",
   botDifficulty: "normal",
   error: null,
 };

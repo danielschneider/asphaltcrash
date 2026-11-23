@@ -57,7 +57,7 @@ describe("StartScreen mode switching", () => {
     }
     expect(screen.getByLabelText("Game mode")).toBeTruthy();
     expect(screen.getByLabelText("Difficulty")).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Play vs CPU" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Play Crashfest" })).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Host room" })).toBeNull();
     expect(screen.queryByLabelText("Name")).toBeNull();
   });
@@ -71,14 +71,14 @@ describe("StartScreen mode switching", () => {
     expect(screen.queryByRole("slider")).toBeNull();
     expect(screen.queryByLabelText("Game mode")).toBeNull();
     expect(screen.queryByLabelText("Difficulty")).toBeNull();
-    expect(screen.queryByRole("button", { name: "Play vs CPU" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Play Crashfest" })).toBeNull();
   });
 
   it("returns to solo controls when switching back", () => {
     render(<StartScreen onStart={vi.fn()} />);
     fireEvent.click(screen.getByRole("radio", { name: "Multiplayer" }));
     fireEvent.click(screen.getByRole("radio", { name: "Single player" }));
-    expect(screen.getByRole("button", { name: "Play vs CPU" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Play Crashfest" })).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Host room" })).toBeNull();
   });
 });

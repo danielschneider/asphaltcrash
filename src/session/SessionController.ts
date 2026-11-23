@@ -223,7 +223,7 @@ export class SessionController {
   private hostRenderMs: number | null = null;
   private readonly hudThrottle = new HudThrottle(gameConfig.hudHz);
   private matchFrames = 0;
-  private soloGameMode: GameMode = "cash";
+  private soloGameMode: GameMode = "crashfest";
 
   constructor(deps: SessionDeps = DEFAULT_DEPS) {
     this.deps = deps;
@@ -362,7 +362,7 @@ export class SessionController {
       pid: HOST_PID,
       players: [{ pid: HOST_PID, name: hostName }],
       bots: gameConfig.botDefaultCount,
-      gameMode: "cash",
+      gameMode: "crashfest",
       botDifficulty: "normal",
       error: null,
     });

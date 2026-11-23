@@ -258,7 +258,7 @@ export const gameConfig = {
   joystickDeadZone: 0.12,
   botDefaultCount: 8,
   botSeedStride: 7919,
-  botAttackRadiusPx: 350,
+  botAttackRadiusPx: 500,
   botEvadeRadiusPx: 200,
   botProfiles: {
     easy: {
@@ -267,14 +267,14 @@ export const gameConfig = {
       aggression: 0.2,
     },
     normal: {
-      reactionDelayTicks: 10,
-      aimNoiseRad: 0.18,
-      aggression: 0.5,
+      reactionDelayTicks: 6,
+      aimNoiseRad: 0.12,
+      aggression: 0.7,
     },
     hard: {
-      reactionDelayTicks: 4,
-      aimNoiseRad: 0.06,
-      aggression: 0.8,
+      reactionDelayTicks: 3,
+      aimNoiseRad: 0.04,
+      aggression: 0.9,
     },
   },
   playerColors: [
