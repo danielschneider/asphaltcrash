@@ -213,6 +213,7 @@ export class SessionController {
   private handshakeClient: HandshakeClient | null = null;
   private lobbyUnsubscribers: Unsubscribe[] = [];
   private connectTimer: unknown = null;
+  private resultTimer: unknown = null;
   private lobbyRoster: RosterHandshakeHost | null = null;
   private matchHost: MatchHost | null = null;
   private matchClient: MatchClient | null = null;
@@ -302,28 +303,32 @@ export class SessionController {
   }
 
   endMatch(snapshot?: MatchSnapshot, winnerPids: readonly number[] = []): void {
+    if (this.state !== SESSION_STATE.playingSolo || this.resultTimer !== null) {
+      return;
+    }
     this.engine?.stop();
     this.audio.dispose();
     this.detachHud();
-    if (this.state === SESSION_STATE.playingSolo) {
-      if (snapshot !== undefined) {
-        const scores = snapshot.cars.map((car): ScoreItem =>
-          this.soloGameMode === "crashfest"
-            ? [car.pid, 0, car.score, 0]
-            : [car.pid, car.score, 0, car.score],
-        );
-        this.deps.hud.push(
-          buildEndHud(
-            scores,
-            LOCAL_PLAYER_ID,
-            this.soloGameMode,
-            winnerPids,
-            this.soloNames,
-          ),
-        );
-      }
-      this.setState(SESSION_STATE.ended);
+    if (snapshot !== undefined) {
+      const scores = snapshot.cars.map((car): ScoreItem =>
+        this.soloGameMode === "crashfest"
+          ? [car.pid, 0, car.score, 0]
+          : [car.pid, car.score, 0, car.score],
+      );
+      this.deps.hud.push(
+        buildEndHud(
+          scores,
+          LOCAL_PLAYER_ID,
+          this.soloGameMode,
+          winnerPids,
+          this.soloNames,
+        ),
+      );
     }
+    this.scheduleResultTransition(this.soloGameMode, winnerPids, () => {
+      if (this.state !== SESSION_STATE.playingSolo) return;
+      this.setState(SESSION_STATE.ended);
+    });
   }
 
   setPaused(on: boolean): void {
@@ -585,13 +590,36 @@ export class SessionController {
     gameMode: GameMode,
     names: ReadonlyMap<number, string>,
   ): void {
-    if (this.state !== SESSION_STATE.playingNetwork) return;
+    if (
+      this.state !== SESSION_STATE.playingNetwork ||
+      this.resultTimer !== null
+    ) {
+      return;
+    }
     console.log("[mp][match] finishNetworkMatch");
-    this.resetMatchState();
     this.deps.hud.push(
       buildEndHud(scores, localPid, gameMode, winnerPids, names),
     );
-    this.setState(SESSION_STATE.endedNetwork);
+    this.scheduleResultTransition(gameMode, winnerPids, () => {
+      if (this.state !== SESSION_STATE.playingNetwork) return;
+      this.resetMatchState();
+      this.setState(SESSION_STATE.endedNetwork);
+    });
+  }
+
+  private scheduleResultTransition(
+    gameMode: GameMode,
+    winnerPids: readonly number[],
+    onComplete: () => void,
+  ): void {
+    if (gameMode !== "crashfest" || winnerPids.length === 0) {
+      onComplete();
+      return;
+    }
+    this.resultTimer = this.lobbyDeps.timers.setTimeout(() => {
+      this.resultTimer = null;
+      onComplete();
+    }, gameConfig.crashfestResultDelaySeconds * 1000);
   }
 
   private cancelMatchFrame(): void {
@@ -624,6 +652,7 @@ export class SessionController {
           HOST_PID,
           host.gameMode,
           snapshot.timeRemainingMs,
+          host.connectivity(nowMs) ?? undefined,
         ),
       );
     }
@@ -724,6 +753,10 @@ export class SessionController {
 
   backToIdle(): void {
     this.startToken += 1;
+    if (this.resultTimer !== null) {
+      this.lobbyDeps.timers.clearTimeout(this.resultTimer);
+      this.resultTimer = null;
+    }
     this.resetMatchState();
     this.detachHud();
     this.engine?.dispose();

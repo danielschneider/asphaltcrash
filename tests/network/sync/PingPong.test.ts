@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   RttTracker,
+  JitterTracker,
+  classifyConnectivity,
   estimateHostOffsetMs,
   makePing,
   makePong,
@@ -52,5 +54,22 @@ describe("ping and pong", () => {
   it("estimates host offset as h - (c + rtt / 2)", () => {
     const pong = makePong(makePing(1000), 5000);
     expect(estimateHostOffsetMs(pong, 1080)).toBe(5000 - (1000 + 40));
+  });
+});
+
+describe("connectivity quality", () => {
+  it("averages RTT variation for jitter", () => {
+    const tracker = new JitterTracker();
+    tracker.addSample(100);
+    tracker.addSample(120);
+    tracker.addSample(140);
+    expect(tracker.average()).toBe(20);
+  });
+
+  it("classifies green, yellow and red thresholds", () => {
+    expect(classifyConnectivity(80, 20)).toBe("good");
+    expect(classifyConnectivity(140, 40)).toBe("fair");
+    expect(classifyConnectivity(220, 70)).toBe("poor");
+    expect(classifyConnectivity(null, 0)).toBe("poor");
   });
 });

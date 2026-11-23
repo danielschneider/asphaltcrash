@@ -654,6 +654,50 @@ body,
   font-weight: 700;
 }
 
+.connectivity-signal {
+  position: absolute;
+  top: 0;
+  right: calc(env(safe-area-inset-right) + 68px);
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  height: 30px;
+  padding: 5px 8px;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.55);
+}
+
+.connectivity-bar {
+  width: 5px;
+  height: 8px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.18);
+}
+
+.connectivity-bar:nth-child(2) {
+  height: 12px;
+}
+
+.connectivity-bar:nth-child(3) {
+  height: 16px;
+}
+
+.connectivity-bar:nth-child(4) {
+  height: 20px;
+}
+
+.connectivity-good .filled {
+  background: #43d17c;
+}
+
+.connectivity-fair .filled {
+  background: #ffd166;
+}
+
+.connectivity-poor .filled {
+  background: #e63946;
+}
+
 .hud-panel {
   display: flex;
   gap: 12px;

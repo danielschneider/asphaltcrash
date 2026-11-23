@@ -112,6 +112,7 @@ Cash Run uses the following destruction and respawn rules:
 | Respawn state | 100 HP, empty cargo, invulnerable 2 s (visual blink) |
 
 Crashfest cars do not respawn. A destroyed car remains out for the rest of the match; the match ends when one or zero cars remain alive. In Crashfest, the scoreboard counts attributed kills rather than cash.
+After a Crashfest winner is determined, keep the final game view visible for 3 seconds before showing the results leaderboard. Draws show the leaderboard immediately.
 
 ### 5.4 Hit feedback
 - Impulse above `hitEventThreshold` (0.5) → `hit` event → spark effect at contact point and short camera shake (≤ 4 px, 150 ms).
@@ -270,6 +271,7 @@ Implemented with the browser Web Audio API only (no audio library). Pure math li
 | `cameraFollowLerp` | 6 | Camera follow and zoom-in smoothing rate per second, section 7.1 |
 | `cameraZoomOutLerp` | 10 | Camera zoom-out (widen view) smoothing rate per second, section 7.1 |
 | `crashfestFitMargin` | 0.92 | Fraction of the fit-to-viewport zoom used when spectating a Crashfest arena after elimination (section 7.1) |
+| `crashfestResultDelaySeconds` | 3 | Delay before showing the results leaderboard after a Crashfest win (section 5.3) |
 | `arenaWidth` | 3200 | Arena width in world units (px) |
 | `arenaHeight` | 2400 | Arena height in world units (px) |
 | `crashfestArenaWidth` | 1600 | Crashfest arena width in world units (px) |

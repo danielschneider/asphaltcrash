@@ -5,10 +5,19 @@ export interface HudScore {
   readonly score: number;
 }
 
+export type ConnectivityQuality = "good" | "fair" | "poor";
+
+export interface ConnectivitySnapshot {
+  readonly quality: ConnectivityQuality;
+  readonly rttMs: number | null;
+  readonly jitterMs: number;
+}
+
 export interface HudSnapshot {
   readonly remainingMs: number;
   readonly gameMode: GameMode;
   readonly winnerPids: readonly number[] | null;
+  readonly connectivity?: ConnectivitySnapshot;
   readonly localPid?: number;
   readonly names?: ReadonlyMap<number, string>;
   readonly score: number;

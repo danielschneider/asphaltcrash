@@ -1,4 +1,4 @@
-import type { HudSnapshot } from "../store/hudStore";
+import type { ConnectivitySnapshot, HudSnapshot } from "../store/hudStore";
 import type { GameMode, MatchSnapshot } from "../types/game";
 
 // Accumulates frame time and reports when a HUD publish is due (gameConfig.hudHz).
@@ -27,6 +27,7 @@ export function buildNetworkHud(
   localPid: number,
   gameMode: GameMode,
   remainingMs: number,
+  connectivity?: ConnectivitySnapshot,
 ): HudSnapshot {
   const local = snapshot.cars.find((car) => car.pid === localPid);
   return {
@@ -39,5 +40,6 @@ export function buildNetworkHud(
     scores: snapshot.cars.map((car) => ({ pid: car.pid, score: car.score })),
     feed: [],
     paused: false,
+    ...(connectivity === undefined ? {} : { connectivity }),
   };
 }
