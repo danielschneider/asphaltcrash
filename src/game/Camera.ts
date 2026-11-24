@@ -5,13 +5,20 @@ export interface CameraState {
   readonly x: number;
   readonly y: number;
   readonly zoom: number;
+  readonly zoomTarget: number;
+  readonly zoomDwellS: number;
+  readonly zoomDwellSign: ZoomDwellSign;
+  readonly speedSmooth: number;
 }
+
+export type ZoomDwellSign = -1 | 0 | 1;
 
 export interface CameraTarget {
   readonly x: number;
   readonly y: number;
   readonly speedFraction: number;
   readonly fitZoom?: number;
+  readonly zoomScale?: number;
 }
 
 export interface CameraViewport {
@@ -24,11 +31,25 @@ export interface CameraBounds {
   readonly height: number;
 }
 
-export function createCamera(arena: CameraBounds | ArenaView): CameraState {
+// Zoom factors are tuned for the Cash Run arena. A smaller arena needs a
+// proportionally larger zoom so the visible share of the field stays the same.
+export function zoomScaleForArena(arena: CameraBounds): number {
+  return gameConfig.arenaWidth / arena.width;
+}
+
+export function createCamera(
+  arena: CameraBounds | ArenaView,
+  zoomScale = 1,
+): CameraState {
+  const zoom = gameConfig.cameraZoomRest * zoomScale;
   return {
     x: arena.width / 2,
     y: arena.height / 2,
-    zoom: gameConfig.cameraZoomRest,
+    zoom,
+    zoomTarget: zoom,
+    zoomDwellS: 0,
+    zoomDwellSign: 0,
+    speedSmooth: 0,
   };
 }
 
@@ -43,10 +64,11 @@ export function fitZoomForArena(
   return fit * gameConfig.crashfestFitMargin;
 }
 
-export function zoomForSpeed(speedFraction: number): number {
+export function zoomForSpeed(speedFraction: number, zoomScale = 1): number {
   const t = clamp01(speedFraction);
   return (
     gameConfig.cameraZoomRest *
+    zoomScale *
     Math.pow(gameConfig.cameraZoomMoving / gameConfig.cameraZoomRest, t)
   );
 }
@@ -60,7 +82,16 @@ export function stepCamera(
 ): CameraState {
   const dt = Math.max(0, dtSeconds);
   const blend = 1 - Math.exp(-gameConfig.cameraFollowLerp * dt);
-  const targetZoom = target.fitZoom ?? zoomForSpeed(target.speedFraction);
+  const speedBlend = 1 - Math.exp(-gameConfig.cameraSpeedSmoothRate * dt);
+  const speedSmooth =
+    state.speedSmooth +
+    (clamp01(target.speedFraction) - state.speedSmooth) * speedBlend;
+  const zoomHold = resolveZoomTarget(
+    state,
+    { ...target, speedFraction: speedSmooth },
+    dt,
+  );
+  const targetZoom = zoomHold.zoomTarget;
   // Lower zoom value = wider view. Widening (speeding up) uses the faster rate.
   const zoomRate =
     targetZoom < state.zoom
@@ -83,7 +114,46 @@ export function stepCamera(
       arena.height,
     ),
     zoom,
+    zoomTarget: zoomHold.zoomTarget,
+    zoomDwellS: zoomHold.zoomDwellS,
+    zoomDwellSign: zoomHold.zoomDwellSign,
+    speedSmooth,
   };
+}
+
+interface ZoomHoldState {
+  readonly zoomTarget: number;
+  readonly zoomDwellS: number;
+  readonly zoomDwellSign: ZoomDwellSign;
+}
+
+// Dead time before the speed-based zoom target changes. Speed must stay on the
+// far side of the committed target for the hold time (per direction) first.
+// Fit zoom (spectating) bypasses the hold.
+function resolveZoomTarget(
+  state: CameraState,
+  target: CameraTarget,
+  dt: number,
+): ZoomHoldState {
+  if (target.fitZoom !== undefined) {
+    return { zoomTarget: target.fitZoom, zoomDwellS: 0, zoomDwellSign: 0 };
+  }
+  const rawZoom = zoomForSpeed(target.speedFraction, target.zoomScale ?? 1);
+  const sign = Math.sign(rawZoom - state.zoomTarget) as ZoomDwellSign;
+  if (sign === 0) {
+    return { zoomTarget: state.zoomTarget, zoomDwellS: 0, zoomDwellSign: 0 };
+  }
+  const dwellS = sign === state.zoomDwellSign ? state.zoomDwellS + dt : dt;
+  const holdS =
+    sign < 0 ? gameConfig.cameraZoomOutHoldS : gameConfig.cameraZoomInHoldS;
+  if (dwellS < holdS) {
+    return {
+      zoomTarget: state.zoomTarget,
+      zoomDwellS: dwellS,
+      zoomDwellSign: sign,
+    };
+  }
+  return { zoomTarget: rawZoom, zoomDwellS: dwellS, zoomDwellSign: sign };
 }
 
 function clampCenter(value: number, halfExtent: number, size: number): number {

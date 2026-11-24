@@ -145,6 +145,7 @@ Crashfest uses a 1600 × 1200 px arena. Its spawn positions are scaled from the 
 - Follows the local player's car with smoothing (`cameraFollowLerp` 6 per second).
 - Zoom: closer at rest, further out at speed (GTA-like). Target = `cameraZoomRest` 1.5 × (`cameraZoomMoving` 0.55 / 1.5)^speedFraction, a geometric blend so each speed step changes the visible area by the same proportion. speedFraction = car speed / (`maxForwardSpeed` + `boostSpeedBonus`), clamped to 0..1. Zoom is a scale factor: larger = closer. Smoothed with `cameraFollowLerp` (6/s) when closing in (braking) and with `cameraZoomOutLerp` (10/s) when widening the view (speeding up), so the view opens quickly at speed and settles slowly when braking.
 - Visible area at full speed is about 2.7× the rest area (1.5 / 0.55).
+- Dead time (anti-flicker): the speed-based zoom target only changes after speed has stayed on the far side of the current target for a hold time. Widening (speed up) holds `cameraZoomOutHoldS` 0.5 s, closing in (slow down) holds `cameraZoomInHoldS` 0.8 s. Brief speed dips or spikes (for example bumps or collisions) therefore do not make the camera pump. The hold timer resets when speed returns to the committed side. Spectating (fit zoom) bypasses the hold.
 - Clamped to arena bounds using the visible area in world units (viewport / zoom). If the viewport is larger than the arena, the arena is centered.
 - Spectating (Crashfest only): once the local car is destroyed (no respawn), the camera stops following the wreck and fits the whole arena (`crashfestFitMargin` 0.92 of the largest zoom that fits the viewport), centred on the arena. Zoom eases with `cameraZoomOutLerp` / `cameraFollowLerp`. Only the full-field view; no cycling through other cars.
 
@@ -265,6 +266,9 @@ Implemented with the browser Web Audio API only (no audio library). Pure math li
 | `cameraZoomMoving` | 0.55 | Camera zoom factor at full speed, section 7.1 |
 | `cameraFollowLerp` | 6 | Camera follow and zoom-in smoothing rate per second, section 7.1 |
 | `cameraZoomOutLerp` | 10 | Camera zoom-out (widen view) smoothing rate per second, section 7.1 |
+| `cameraZoomOutHoldS` | 0.5 | Dead time in seconds before a speed-up widens the zoom target, section 7.1 |
+| `cameraZoomInHoldS` | 0.8 | Dead time in seconds before a slow-down closes the zoom target, section 7.1 |
+| `cameraSpeedSmoothRate` | 4 | Low-pass rate per second for the speed signal that drives zoom, section 7.1 |
 | `crashfestFitMargin` | 0.92 | Fraction of the fit-to-viewport zoom used when spectating a Crashfest arena after elimination (section 7.1) |
 | `arenaWidth` | 3200 | Arena width in world units (px) |
 | `arenaHeight` | 2400 | Arena height in world units (px) |

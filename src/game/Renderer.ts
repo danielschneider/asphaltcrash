@@ -20,6 +20,7 @@ import {
   createCamera,
   fitZoomForArena,
   stepCamera,
+  zoomScaleForArena,
   type CameraState,
 } from "./Camera";
 import {
@@ -112,7 +113,6 @@ interface EffectSlot {
 
 interface RenderState {
   camera: CameraState;
-  prevLocal: { x: number; y: number } | null;
   wasDestroyed: Uint8Array;
 }
 
@@ -161,8 +161,7 @@ export async function createWorldRenderer(
   };
 
   const state: RenderState = {
-    camera: createCamera(arena),
-    prevLocal: null,
+    camera: createCamera(arena, zoomScaleForArena(arena)),
     wasDestroyed: new Uint8Array(gameConfig.maxCars),
   };
 
@@ -559,6 +558,7 @@ function updateCamera(
     local !== undefined &&
     (local.flags & CAR_FLAG.destroyed) !== 0;
   const viewport = { width: app.screen.width, height: app.screen.height };
+  const zoomScale = zoomScaleForArena(arena);
   const target = isSpectating
     ? {
         x: arena.width / 2,
@@ -566,8 +566,7 @@ function updateCamera(
         speedFraction: 0,
         fitZoom: fitZoomForArena(viewport, arena),
       }
-    : localTarget(state, local, arena, dt);
-  if (local && !isSpectating) state.prevLocal = { x: local.x, y: local.y };
+    : localTarget(local, arena, zoomScale);
   state.camera = stepCamera(state.camera, target, dt, viewport, arena);
   const zoom = state.camera.zoom;
   world.scale.set(zoom);
@@ -578,25 +577,28 @@ function updateCamera(
 }
 
 function localTarget(
-  state: RenderState,
   local: CarView | undefined,
   arena: ArenaView,
-  dt: number,
-): { x: number; y: number; speedFraction: number } {
+  zoomScale: number,
+): { x: number; y: number; speedFraction: number; zoomScale: number } {
   if (!local) {
-    return { x: arena.width / 2, y: arena.height / 2, speedFraction: 0 };
+    return {
+      x: arena.width / 2,
+      y: arena.height / 2,
+      speedFraction: 0,
+      zoomScale,
+    };
   }
   return {
     x: local.x,
     y: local.y,
-    speedFraction: speedFraction(state, local, dt),
+    speedFraction: speedFraction(local),
+    zoomScale,
   };
 }
 
-function speedFraction(state: RenderState, car: CarView, dt: number): number {
-  const prev = state.prevLocal;
-  if (!prev || dt <= 0) return 0;
-  const speed = Math.hypot(car.x - prev.x, car.y - prev.y) / dt;
+function speedFraction(car: CarView): number {
+  const speed = Math.hypot(car.vx, car.vy);
   return clamp01(
     speed / (gameConfig.maxForwardSpeed + gameConfig.boostSpeedBonus),
   );

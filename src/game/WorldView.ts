@@ -13,6 +13,8 @@ export function buildWorldView(
       pid: car.pid,
       x: car.x,
       y: car.y,
+      vx: car.vx,
+      vy: car.vy,
       angle: car.angle,
       hp: car.hp,
       flags: car.flags,

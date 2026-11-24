@@ -60,6 +60,9 @@ export interface GameConfigShape {
   readonly cameraZoomMoving: number;
   readonly cameraFollowLerp: number;
   readonly cameraZoomOutLerp: number;
+  readonly cameraZoomOutHoldS: number;
+  readonly cameraZoomInHoldS: number;
+  readonly cameraSpeedSmoothRate: number;
   readonly crashfestFitMargin: number;
   readonly arenaWidth: number;
   readonly arenaHeight: number;
@@ -197,6 +200,11 @@ export const gameConfig = {
   cameraZoomMoving: 0.55,
   cameraFollowLerp: 6,
   cameraZoomOutLerp: 10,
+  // Dead time before a speed change moves the zoom target (GAMEPLAY 7.1).
+  cameraZoomOutHoldS: 0.5,
+  cameraZoomInHoldS: 0.8,
+  // Low-pass rate (per second) for the speed signal that drives zoom; removes per-frame position jitter.
+  cameraSpeedSmoothRate: 4,
   crashfestFitMargin: 0.92,
   arenaWidth: ARENA_WIDTH,
   arenaHeight: ARENA_HEIGHT,

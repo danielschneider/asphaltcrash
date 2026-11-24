@@ -119,6 +119,8 @@ export interface CarView {
   readonly pid: number;
   readonly x: number;
   readonly y: number;
+  readonly vx: number;
+  readonly vy: number;
   readonly angle: number;
   readonly hp: number;
   readonly flags: number;

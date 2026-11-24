@@ -5,19 +5,39 @@ import {
   fitZoomForArena,
   stepCamera,
   zoomForSpeed,
+  zoomScaleForArena,
   type CameraState,
   type CameraTarget,
 } from "../../src/game/Camera";
 
 const ARENA = { width: 2400, height: 1600 };
 const VIEWPORT = { width: 1000, height: 700 };
-const STATE: CameraState = { x: 1200, y: 800, zoom: 1 };
+const STATE: CameraState = cameraAt(1200, 800, 1);
 const SETTLE_STEPS = 600;
+const FRAME = 1 / 60;
+
+function cameraAt(
+  x: number,
+  y: number,
+  zoom: number,
+  extra: Partial<CameraState> = {},
+): CameraState {
+  return {
+    x,
+    y,
+    zoom,
+    zoomTarget: zoom,
+    zoomDwellS: 0,
+    zoomDwellSign: 0,
+    speedSmooth: 0,
+    ...extra,
+  };
+}
 
 function settle(target: CameraTarget, start: CameraState): CameraState {
   let state = start;
   for (let i = 0; i < SETTLE_STEPS; i += 1) {
-    state = stepCamera(state, target, 1 / 60, VIEWPORT, ARENA);
+    state = stepCamera(state, target, FRAME, VIEWPORT, ARENA);
   }
   return state;
 }
@@ -28,6 +48,10 @@ describe("createCamera", () => {
       x: 1200,
       y: 800,
       zoom: gameConfig.cameraZoomRest,
+      zoomTarget: gameConfig.cameraZoomRest,
+      zoomDwellS: 0,
+      zoomDwellSign: 0,
+      speedSmooth: 0,
     });
   });
 });
@@ -82,6 +106,60 @@ describe("stepCamera", () => {
     expect(state.zoom).toBeCloseTo(gameConfig.cameraZoomMoving, 3);
   });
 
+  it("does not change zoom target while speed change is within the dead time", () => {
+    const holdFrames = Math.floor(gameConfig.cameraZoomOutHoldS / FRAME) - 2;
+    let state = cameraAt(1200, 800, gameConfig.cameraZoomRest);
+    for (let i = 0; i < holdFrames; i += 1) {
+      state = stepCamera(
+        state,
+        { x: 1200, y: 800, speedFraction: 1 },
+        FRAME,
+        VIEWPORT,
+        ARENA,
+      );
+    }
+    expect(state.zoomTarget).toBe(gameConfig.cameraZoomRest);
+    expect(state.zoom).toBe(gameConfig.cameraZoomRest);
+  });
+
+  it("changes zoom target after the dead time elapsed", () => {
+    const state = settle(
+      { x: 1200, y: 800, speedFraction: 1 },
+      cameraAt(1200, 800, gameConfig.cameraZoomRest),
+    );
+    expect(state.zoomTarget).toBeCloseTo(gameConfig.cameraZoomMoving, 10);
+    expect(state.zoom).toBeLessThan(gameConfig.cameraZoomRest);
+  });
+
+  it("resets the dead time when speed returns to the current target", () => {
+    let state = cameraAt(1200, 800, gameConfig.cameraZoomRest);
+    for (let i = 0; i < 10; i += 1) {
+      state = stepCamera(
+        state,
+        { x: 1200, y: 800, speedFraction: 1 },
+        FRAME,
+        VIEWPORT,
+        ARENA,
+      );
+    }
+    state = settle({ x: 1200, y: 800, speedFraction: 0 }, state);
+    expect(state.zoomDwellS).toBe(0);
+    expect(state.zoomTarget).toBe(gameConfig.cameraZoomRest);
+  });
+
+  it("filters a single speed spike so the zoom target does not move", () => {
+    const start = settle({ x: 1200, y: 800, speedFraction: 0 }, STATE);
+    const spike = stepCamera(
+      start,
+      { x: 1200, y: 800, speedFraction: 1 },
+      FRAME,
+      VIEWPORT,
+      ARENA,
+    );
+    expect(spike.speedSmooth).toBeLessThan(0.1);
+    expect(spike.zoomTarget).toBe(start.zoomTarget);
+  });
+
   it("zooms in at rest and out at speed (rest is closer than moving)", () => {
     expect(gameConfig.cameraZoomRest).toBeGreaterThan(
       gameConfig.cameraZoomMoving,
@@ -111,14 +189,22 @@ describe("stepCamera", () => {
     const widenTarget = gameConfig.cameraZoomMoving;
     const closeTarget = gameConfig.cameraZoomRest;
     const widen = stepCamera(
-      { x: 1200, y: 800, zoom: start },
+      cameraAt(1200, 800, start, {
+        zoomTarget: widenTarget,
+        zoomDwellS: 10,
+        zoomDwellSign: -1,
+      }),
       { x: 1200, y: 800, speedFraction: 1 },
       1 / 60,
       VIEWPORT,
       ARENA,
     );
     const close = stepCamera(
-      { x: 1200, y: 800, zoom: start },
+      cameraAt(1200, 800, start, {
+        zoomTarget: closeTarget,
+        zoomDwellS: 10,
+        zoomDwellSign: 1,
+      }),
       { x: 1200, y: 800, speedFraction: 0 },
       1 / 60,
       VIEWPORT,
@@ -156,7 +242,7 @@ describe("stepCamera", () => {
   it("centres the arena when the viewport is larger than the arena", () => {
     const huge = { width: 5000, height: 4000 };
     const next = stepCamera(
-      { x: 100, y: 100, zoom: 1 },
+      cameraAt(100, 100, 1),
       { x: 100, y: 100, speedFraction: 0 },
       1,
       huge,
@@ -186,13 +272,40 @@ describe("fitZoomForArena", () => {
   });
 });
 
+describe("zoomScaleForArena", () => {
+  it("is 1 for the Cash Run arena", () => {
+    expect(
+      zoomScaleForArena({
+        width: gameConfig.arenaWidth,
+        height: gameConfig.arenaHeight,
+      }),
+    ).toBe(1);
+  });
+
+  it("keeps the visible share of the field equal across arena sizes at full speed", () => {
+    const crash = { width: 1600, height: 1200 };
+    const cash = {
+      width: gameConfig.arenaWidth,
+      height: gameConfig.arenaHeight,
+    };
+    const shareAt = (arena: { width: number }, scale: number): number => {
+      const zoom = zoomForSpeed(1, scale);
+      return VIEWPORT.width / zoom / arena.width;
+    };
+    expect(shareAt(crash, zoomScaleForArena(crash))).toBeCloseTo(
+      shareAt(cash, zoomScaleForArena(cash)),
+      10,
+    );
+  });
+});
+
 describe("stepCamera with fitZoom", () => {
   const ARENA_FIT = { width: 1600, height: 1200 };
   const FIT_VIEWPORT = { width: 1600, height: 1000 };
 
   it("settles on the fit zoom and arena centre", () => {
     const fitZoom = fitZoomForArena(FIT_VIEWPORT, ARENA_FIT);
-    let state: CameraState = { x: 100, y: 100, zoom: 1.5 };
+    let state: CameraState = cameraAt(100, 100, 1.5);
     for (let i = 0; i < SETTLE_STEPS; i += 1) {
       state = stepCamera(
         state,
@@ -209,7 +322,7 @@ describe("stepCamera with fitZoom", () => {
 
   it("ignores speed when fitZoom is set", () => {
     const next = stepCamera(
-      { x: 800, y: 600, zoom: 1 },
+      cameraAt(800, 600, 1),
       { x: 800, y: 600, speedFraction: 0, fitZoom: 0.4 },
       1 / 60,
       FIT_VIEWPORT,
