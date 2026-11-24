@@ -14,6 +14,12 @@ import {
   type ScoreItem,
 } from "../network/protocol/messages";
 import { validateReady } from "../network/protocol/validate";
+import {
+  classifyConnectivity,
+  JitterTracker,
+  makePong,
+} from "../network/sync/PingPong";
+import type { ConnectivitySnapshot } from "../store/hudStore";
 import type { Transport } from "../network/transport/Transport";
 import type {
   ArenaView,
@@ -80,6 +86,8 @@ export class MatchHost {
   private accumulatorMs = 0;
   private backlogMs = 0;
   private snapsSent = 0;
+  private readonly pingArrivalMs = new Map<number, number>();
+  private readonly pingIntervals = new Map<number, JitterTracker>();
 
   constructor(deps: MatchHostDeps) {
     this.deps = deps;
@@ -168,6 +176,16 @@ export class MatchHost {
   handleInbound(msg: NetworkMessage, fromPeerId: PeerId): boolean {
     const pid = this.deps.pidForPeer(fromPeerId);
     if (pid === undefined || !this.clientPids.includes(pid)) return false;
+    if (msg.t === "ping") {
+      if (!Number.isFinite(msg.c)) return false;
+      this.recordPing(pid, this.deps.now());
+      this.deps.transport.sendTo(
+        fromPeerId,
+        makePong(msg, this.deps.now()),
+        "reliable",
+      );
+      return true;
+    }
     if (msg.t === "in") {
       return this.receiver.accept(pid, msg, this.deps.now());
     }
@@ -238,6 +256,47 @@ export class MatchHost {
         "unreliable",
       );
       this.snapsSent += 1;
+    }
+  }
+
+  connectivity(nowMs: number): ConnectivitySnapshot | null {
+    if (this.clientPids.length === 0) return null;
+    let worstRtt = 0;
+    let worstJitter = 0;
+    let worstQuality: "good" | "fair" | "poor" = "good";
+    for (const pid of this.clientPids) {
+      const lastPingMs = this.pingArrivalMs.get(pid);
+      if (lastPingMs === undefined) {
+        worstQuality = "poor";
+        continue;
+      }
+      const silenceMs = nowMs - lastPingMs;
+      const jitterMs = this.pingIntervals.get(pid)?.average() ?? 0;
+      const quality =
+        silenceMs > 6000 ? "poor" : classifyConnectivity(silenceMs, jitterMs);
+      if (silenceMs > worstRtt) worstRtt = silenceMs;
+      if (jitterMs > worstJitter) worstJitter = jitterMs;
+      if (quality === "poor") worstQuality = "poor";
+      else if (quality === "fair" && worstQuality === "good")
+        worstQuality = "fair";
+    }
+    return {
+      quality: worstQuality,
+      rttMs: worstRtt,
+      jitterMs: worstJitter,
+    };
+  }
+
+  private recordPing(pid: number, nowMs: number): void {
+    const previousMs = this.pingArrivalMs.get(pid);
+    this.pingArrivalMs.set(pid, nowMs);
+    let tracker = this.pingIntervals.get(pid);
+    if (tracker === undefined) {
+      tracker = new JitterTracker();
+      this.pingIntervals.set(pid, tracker);
+    }
+    if (previousMs !== undefined) {
+      tracker.addSample(nowMs - previousMs);
     }
   }
 

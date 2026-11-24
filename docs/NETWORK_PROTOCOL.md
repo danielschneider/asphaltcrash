@@ -139,6 +139,15 @@ Events are reliable and ordered. Clients must apply events in order. Duplicate e
 - Client render time `renderTime = hostNow - INTERP_DELAY_MS` with `INTERP_DELAY_MS = 100`.
 - Snapshots carry `k` (tick). Host tick maps to host time as `k * STEP_MS`. Clients use this mapping with the offset to sample the buffer.
 
+### 6.1 Connectivity signal
+The multiplayer HUD shows a four-bar signal in the top-right of the match.
+
+| Level | RTT | Jitter | Bars |
+|-------|-----|--------|------|
+| Green | ≤ 100 ms | ≤ 25 ms | 4 filled |
+| Yellow | ≤ 180 ms | ≤ 50 ms | 3 filled |
+| Red | Above yellow thresholds, no pong for 6 s, or still waiting for the first pong | 1 filled |
+
 ---
 
 ## 7. Validation rules (inbound)

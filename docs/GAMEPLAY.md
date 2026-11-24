@@ -112,6 +112,7 @@ Cash Run uses the following destruction and respawn rules:
 | Respawn state | 100 HP, empty cargo, invulnerable 2 s (visual blink) |
 
 Crashfest cars do not respawn. A destroyed car remains out for the rest of the match; the match ends when one or zero cars remain alive. In Crashfest, the scoreboard counts attributed kills rather than cash.
+After a Crashfest winner is determined, keep the final game view visible for 3 seconds before showing the results leaderboard. Draws show the leaderboard immediately.
 
 ### 5.4 Hit feedback
 - Impulse above `hitEventThreshold` (0.5) → `hit` event → spark effect at contact point and short camera shake (≤ 4 px, 150 ms).
@@ -249,6 +250,10 @@ Implemented with the browser Web Audio API only (no audio library). Pure math li
 | `lobbyConnectTimeoutMs` | 10000 | Lobby join timeout in ms; join is reported as failed if no welcome arrives |
 | `botAttackRadiusPx` | 500 | Bot attacks an enemy within this distance (hp >= 15) |
 | `botEvadeRadiusPx` | 200 | Bot evades an enemy within this distance when hp < 40 and not attacking |
+| `botAttackLeadSeconds` | 0.65 | Maximum opponent movement prediction used when attacking |
+| `botAttackFlankDistancePx` | 120 | Maximum lateral offset for seeded side-approach attacks |
+| `botWallPressureDistancePx` | 180 | Distance from an arena wall at which an enemy is considered pressured |
+| `botWallPressureTargetMultiplier` | 0.75 | Target score multiplier for enemies near a wall |
 | `timerWarningSeconds` | [30, 10, 0] | Remaining-time thresholds for timer warnings |
 | `fixedStepHz` | 60 | Fixed simulation step rate (1/60 s) |
 | `maxFrameDeltaMs` | 250 | Frame delta clamp for the Engine accumulator |
@@ -270,6 +275,7 @@ Implemented with the browser Web Audio API only (no audio library). Pure math li
 | `cameraZoomInHoldS` | 0.8 | Dead time in seconds before a slow-down closes the zoom target, section 7.1 |
 | `cameraSpeedSmoothRate` | 4 | Low-pass rate per second for the speed signal that drives zoom, section 7.1 |
 | `crashfestFitMargin` | 0.92 | Fraction of the fit-to-viewport zoom used when spectating a Crashfest arena after elimination (section 7.1) |
+| `crashfestResultDelaySeconds` | 3 | Delay before showing the results leaderboard after a Crashfest win (section 5.3) |
 | `arenaWidth` | 3200 | Arena width in world units (px) |
 | `arenaHeight` | 2400 | Arena height in world units (px) |
 | `crashfestArenaWidth` | 1600 | Crashfest arena width in world units (px) |
@@ -308,7 +314,7 @@ Implemented with the browser Web Audio API only (no audio library). Pure math li
 | `aimBrakeSpeedPxs` | 20 | Forward speed above which a misaligned car brakes (section 4.1) |
 | `aimPivotRateRadPerSec` | 2.6 | Turn rate for a stationary car pivoting toward the aim (section 4.1) |
 | `botDefaultCount` | 8 | Default bot count in every mode: solo and lobby (host) |
-| `botProfiles` | easy / normal / hard | Bot profile parameters (`reactionDelayTicks`, `aimNoiseRad`, `aggression`) |
+| `botProfiles` | easy / normal / hard | Bot profile parameters (`reactionDelayTicks`, `aimNoiseRad`, `aggression`, `flankFactor`) |
 | `playerColors` | 16 hex colours | Car colours assigned by slot order |
 | `carDamageShaderEnabled` | false | Enables the car damage tone filter (section 8.1). Off: damage shows as marks only, paint stays unchanged |
 | `carDamageMaxStrength` | 0.85 | Shader strength at full damage (0..1) |
@@ -360,6 +366,7 @@ Implemented with the browser Web Audio API only (no audio library). Pure math li
 - Destruction is permanent. No respawn, match timer, or cash scoring.
 - Each attributed kill counts as one kill on the scoreboard. The last surviving car wins; zero survivors is a draw.
 - Bots actively attack surviving opponents.
+- During attacks, bots lead moving targets, choose vulnerable or wall-pressured opponents, and use a seeded side approach. Difficulty profiles control how strongly they flank.
 
 ### 10.5 Lobby rules
 - Host creates room → 6-character code and QR code shown.

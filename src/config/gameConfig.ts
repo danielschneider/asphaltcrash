@@ -10,6 +10,7 @@ export interface BotProfileParams {
   readonly reactionDelayTicks: number;
   readonly aimNoiseRad: number;
   readonly aggression: number;
+  readonly flankFactor: number;
 }
 
 export interface BotProfilesShape {
@@ -64,6 +65,7 @@ export interface GameConfigShape {
   readonly cameraZoomInHoldS: number;
   readonly cameraSpeedSmoothRate: number;
   readonly crashfestFitMargin: number;
+  readonly crashfestResultDelaySeconds: number;
   readonly arenaWidth: number;
   readonly arenaHeight: number;
   readonly crashfestArenaWidth: number;
@@ -110,6 +112,10 @@ export interface GameConfigShape {
   readonly botSeedStride: number;
   readonly botAttackRadiusPx: number;
   readonly botEvadeRadiusPx: number;
+  readonly botAttackLeadSeconds: number;
+  readonly botAttackFlankDistancePx: number;
+  readonly botWallPressureDistancePx: number;
+  readonly botWallPressureTargetMultiplier: number;
   readonly botProfiles: BotProfilesShape;
   readonly playerColors: readonly number[];
   readonly carDamageShaderEnabled: boolean;
@@ -206,6 +212,7 @@ export const gameConfig = {
   // Low-pass rate (per second) for the speed signal that drives zoom; removes per-frame position jitter.
   cameraSpeedSmoothRate: 4,
   crashfestFitMargin: 0.92,
+  crashfestResultDelaySeconds: 3,
   arenaWidth: ARENA_WIDTH,
   arenaHeight: ARENA_HEIGHT,
   crashfestArenaWidth: 1600,
@@ -276,21 +283,28 @@ export const gameConfig = {
   botSeedStride: 7919,
   botAttackRadiusPx: 500,
   botEvadeRadiusPx: 200,
+  botAttackLeadSeconds: 0.65,
+  botAttackFlankDistancePx: 120,
+  botWallPressureDistancePx: 180,
+  botWallPressureTargetMultiplier: 0.75,
   botProfiles: {
     easy: {
       reactionDelayTicks: 18,
       aimNoiseRad: 0.35,
       aggression: 0.2,
+      flankFactor: 0.2,
     },
     normal: {
       reactionDelayTicks: 6,
       aimNoiseRad: 0.12,
       aggression: 0.7,
+      flankFactor: 0.55,
     },
     hard: {
       reactionDelayTicks: 3,
       aimNoiseRad: 0.04,
       aggression: 0.9,
+      flankFactor: 0.8,
     },
   },
   playerColors: [

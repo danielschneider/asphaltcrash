@@ -26,6 +26,8 @@ export interface BotEnemyView {
   readonly pid: number;
   readonly x: number;
   readonly y: number;
+  readonly vx: number;
+  readonly vy: number;
   readonly hp: number;
 }
 
@@ -96,8 +98,11 @@ function nearestTo<T extends Point>(
   return best;
 }
 
-function clampToArena(point: Point, gameMode: GameMode): Point {
-  const margin = gameConfig.wallThickness + ARENA_MARGIN_PX;
+function clampToArena(
+  point: Point,
+  gameMode: GameMode,
+  margin = gameConfig.wallThickness + ARENA_MARGIN_PX,
+): Point {
   const width =
     gameMode === "crashfest"
       ? gameConfig.crashfestArenaWidth
@@ -136,6 +141,8 @@ export class BotController {
   private callCount = 0;
   private seq = 0;
   private held: Decision = IDLE_DECISION;
+  private attackTargetPid = -1;
+  private attackSide: -1 | 1 = 1;
 
   constructor(playerId: number, difficulty: BotDifficulty, rng: Rng) {
     this.playerId = playerId;
@@ -169,7 +176,8 @@ export class BotController {
 
   private plan(view: BotPerception): Decision {
     const state = selectState(view);
-    const target = targetFor(state, view);
+    const target =
+      state === "Attack" ? this.attackTargetFor(view) : targetFor(state, view);
     const bearing = Math.atan2(target.y - view.self.y, target.x - view.self.x);
     const noise = (this.rng.next() - 0.5) * 2 * this.profile.aimNoiseRad;
     const aimAngle = bearing + noise;
@@ -185,10 +193,79 @@ export class BotController {
       state,
     };
   }
+
+  private attackTargetFor(view: BotPerception): Point {
+    const enemy = preferredAttackTarget(view);
+    if (enemy === undefined) {
+      return { x: view.self.x, y: view.self.y };
+    }
+    if (enemy.pid !== this.attackTargetPid) {
+      this.attackTargetPid = enemy.pid;
+      this.attackSide = this.rng.next() < 0.5 ? -1 : 1;
+    }
+
+    const dx = enemy.x - view.self.x;
+    const dy = enemy.y - view.self.y;
+    const distance = Math.hypot(dx, dy);
+    const leadSeconds = Math.min(
+      gameConfig.botAttackLeadSeconds,
+      distance / gameConfig.maxForwardSpeed,
+    );
+    const flankDistance =
+      gameConfig.botAttackFlankDistancePx * this.profile.flankFactor;
+    const inverseDistance = distance > 0 ? 1 / distance : 0;
+    return clampToArena(
+      {
+        x:
+          enemy.x +
+          enemy.vx * leadSeconds -
+          dy * inverseDistance * flankDistance * this.attackSide,
+        y:
+          enemy.y +
+          enemy.vy * leadSeconds +
+          dx * inverseDistance * flankDistance * this.attackSide,
+      },
+      view.gameMode,
+      gameConfig.wallThickness + gameConfig.carWidth,
+    );
+  }
 }
 
 function enemiesAlive(view: BotPerception): readonly BotEnemyView[] {
   return view.enemies.filter((enemy) => enemy.hp > 0);
+}
+
+function preferredAttackTarget(view: BotPerception): BotEnemyView | undefined {
+  const width =
+    view.gameMode === "crashfest"
+      ? gameConfig.crashfestArenaWidth
+      : gameConfig.arenaWidth;
+  const height =
+    view.gameMode === "crashfest"
+      ? gameConfig.crashfestArenaHeight
+      : gameConfig.arenaHeight;
+  let best: BotEnemyView | undefined;
+  let bestScore = Number.POSITIVE_INFINITY;
+  for (const enemy of enemiesAlive(view)) {
+    const enemyDistance = distance(view.self, enemy);
+    const hpFactor = 0.65 + 0.35 * (enemy.hp / gameConfig.maxHealth);
+    const wallDistance = Math.min(
+      enemy.x - gameConfig.wallThickness,
+      width - gameConfig.wallThickness - enemy.x,
+      enemy.y - gameConfig.wallThickness,
+      height - gameConfig.wallThickness - enemy.y,
+    );
+    const wallFactor =
+      wallDistance <= gameConfig.botWallPressureDistancePx
+        ? gameConfig.botWallPressureTargetMultiplier
+        : 1;
+    const score = enemyDistance * hpFactor * wallFactor;
+    if (score < bestScore) {
+      best = enemy;
+      bestScore = score;
+    }
+  }
+  return best;
 }
 
 function selectState(view: BotPerception): BotState {

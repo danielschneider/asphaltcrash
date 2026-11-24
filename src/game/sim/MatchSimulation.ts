@@ -303,6 +303,8 @@ export class MatchSimulation {
         pid: other,
         x: this.bodyOf(other).x,
         y: this.bodyOf(other).y,
+        vx: this.bodyOf(other).vx,
+        vy: this.bodyOf(other).vy,
         hp: this.carOf(other).hp,
       }));
     return {

@@ -19,6 +19,12 @@ import type { PeerId } from "../types/network";
 import { frameSecondsSince } from "./frameSeconds";
 import { buildNetworkHud, HudThrottle } from "./networkHud";
 import { gameConfig } from "../config/gameConfig";
+import {
+  classifyConnectivity,
+  JitterTracker,
+  RttTracker,
+  makePing,
+} from "../network/sync/PingPong";
 
 export interface MatchClientDeps {
   readonly transport: Transport;
@@ -34,6 +40,8 @@ export interface MatchClientDeps {
 }
 
 const UNSEEDED = -1;
+const PING_INTERVAL_MS = 2000;
+const PONG_TIMEOUT_MS = 6000;
 
 export class MatchClient {
   private readonly deps: MatchClientDeps;
@@ -52,6 +60,10 @@ export class MatchClient {
   private lastInputSeq = UNSEEDED;
   private snapsReceived = 0;
   private rendererUpdates = 0;
+  private readonly rttTracker = new RttTracker();
+  private readonly jitterTracker = new JitterTracker();
+  private lastPingSentMs: number | null = null;
+  private lastPongMs: number | null = null;
 
   constructor(deps: MatchClientDeps) {
     this.deps = deps;
@@ -94,6 +106,7 @@ export class MatchClient {
     const nowMs = this.deps.now();
     const dtSeconds = this.takeFrameSeconds(nowMs);
     this.pumpInput(nowMs);
+    this.pumpPing(nowMs);
     this.renderFrame(dtSeconds);
     this.frameId = this.deps.requestFrame(this.handleFrame);
   };
@@ -106,6 +119,9 @@ export class MatchClient {
         return;
       case "snap":
         this.handleSnap(msg);
+        return;
+      case "pong":
+        this.handlePong(msg.c, this.deps.now());
         return;
       case "end":
         this.handleEnd(msg);
@@ -170,6 +186,24 @@ export class MatchClient {
     this.inputSender.tick(nowMs);
   }
 
+  private pumpPing(nowMs: number): void {
+    if (
+      this.lastPingSentMs !== null &&
+      nowMs - this.lastPingSentMs < PING_INTERVAL_MS
+    ) {
+      return;
+    }
+    this.lastPingSentMs = nowMs;
+    this.deps.transport.send(makePing(nowMs), "reliable");
+  }
+
+  private handlePong(clientSentMs: number, nowMs: number): void {
+    const rttMs = Math.max(nowMs - clientSentMs, 0);
+    this.rttTracker.addSample(rttMs);
+    this.jitterTracker.addSample(rttMs);
+    this.lastPongMs = nowMs;
+  }
+
   private renderFrame(dtSeconds: number): void {
     const arena = this.arena;
     if (arena === null) return;
@@ -194,8 +228,36 @@ export class MatchClient {
     if (remainingMs === null) return;
     if (!this.hudThrottle.tick(dtSeconds)) return;
     this.deps.hud.push(
-      buildNetworkHud(sample, this.deps.localPid, this.gameMode, remainingMs),
+      buildNetworkHud(
+        sample,
+        this.deps.localPid,
+        this.gameMode,
+        remainingMs,
+        this.buildConnectivity(),
+      ),
     );
+  }
+
+  private buildConnectivity(): {
+    readonly quality: "good" | "fair" | "poor";
+    readonly rttMs: number | null;
+    readonly jitterMs: number;
+  } {
+    const nowMs = this.deps.now();
+    if (this.lastPongMs === null || nowMs - this.lastPongMs > PONG_TIMEOUT_MS) {
+      return {
+        quality: "poor",
+        rttMs: null,
+        jitterMs: 0,
+      };
+    }
+    const rttMs = this.rttTracker.median();
+    const jitterMs = this.jitterTracker.average();
+    return {
+      quality: classifyConnectivity(rttMs, jitterMs),
+      rttMs,
+      jitterMs,
+    };
   }
 
   private takeFrameSeconds(nowMs: number): number {

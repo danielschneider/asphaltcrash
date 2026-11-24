@@ -4,6 +4,7 @@ import { useHud } from "../../hooks/useHud";
 import type { HudScore } from "../../store/hudStore";
 import { formatCash, formatPlayerLabel, sortScoresDesc } from "./formatters";
 import { TimerBadge } from "./TimerBadge";
+import { ConnectivitySignal } from "./ConnectivitySignal";
 
 const FEED_VISIBLE_COUNT = 3;
 
@@ -38,6 +39,9 @@ export function Hud() {
         remainingMs={snapshot.remainingMs}
         gameMode={snapshot.gameMode}
       />
+      {snapshot.connectivity ? (
+        <ConnectivitySignal connectivity={snapshot.connectivity} />
+      ) : null}
       <div className="hud-panel">
         {snapshot.gameMode === "crashfest" ? (
           <span>Kills {snapshot.score}</span>

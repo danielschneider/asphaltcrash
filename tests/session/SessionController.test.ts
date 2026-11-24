@@ -8,6 +8,7 @@ import {
   SESSION_STATE,
   SessionController,
 } from "../../src/session/SessionController";
+import { gameConfig } from "../../src/config/gameConfig";
 import { createHudStore } from "../../src/store/hudStore";
 import type { WorldRenderer } from "../../src/game/Renderer";
 
@@ -60,6 +61,39 @@ describe("SessionController solo flow", () => {
       feed: [],
       paused: false,
     });
+    expect(controller.getState()).toBe(SESSION_STATE.ended);
+  });
+
+  it("waits three seconds before showing Crashfest results after a win", async () => {
+    vi.useFakeTimers();
+    try {
+      await controller.startSolo(
+        { ...SOLO, gameMode: "crashfest" },
+        {} as HTMLElement,
+      );
+
+      controller.endMatch(undefined, [0]);
+
+      expect(controller.getState()).toBe(SESSION_STATE.playingSolo);
+      await vi.advanceTimersByTimeAsync(
+        gameConfig.crashfestResultDelaySeconds * 1000 - 1,
+      );
+      expect(controller.getState()).toBe(SESSION_STATE.playingSolo);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(controller.getState()).toBe(SESSION_STATE.ended);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("shows Crashfest results immediately when the match is a draw", async () => {
+    await controller.startSolo(
+      { ...SOLO, gameMode: "crashfest" },
+      {} as HTMLElement,
+    );
+
+    controller.endMatch(undefined, []);
+
     expect(controller.getState()).toBe(SESSION_STATE.ended);
   });
 

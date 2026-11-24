@@ -261,8 +261,9 @@ Engine settings (verified against matter-js 0.20.0 `Engine.create` defaults):
 ### 6.6 Bots
 - `BotController` per bot car. Input: read-only snapshot of `MatchState` from the previous tick. Output: `InputFrame`.
 - FSM transitions from distance to nearest bill, distance to own home base when carrying cargo, presence of enemy car within attack radius, own health below threshold.
+- Attack decisions lead moving targets and score targets by distance, health and wall pressure. Each engagement picks a seeded flank side, with flank strength controlled by the difficulty profile.
 - Bot runs only on the host. Clients never simulate bots.
-- Profile parameters in `BotProfiles.ts`: `reactionDelayTicks`, `aimNoiseRad`, `aggression`.
+- Profile parameters in `BotProfiles.ts`: `reactionDelayTicks`, `aimNoiseRad`, `aggression`, `flankFactor`.
 
 ### 6.7 Networking (L1)
 

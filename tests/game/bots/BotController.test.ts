@@ -44,7 +44,7 @@ describe("BotController state selection", () => {
       { hp: 1 },
       {
         gameMode: "crashfest",
-        enemies: [{ pid: 4, x: 2500, y: 1800, hp: 100 }],
+        enemies: [{ pid: 4, x: 2500, y: 1800, vx: 0, vy: 0, hp: 100 }],
       },
     );
     expect(stateAfter(view)).toBe("Attack");
@@ -63,13 +63,15 @@ describe("BotController state selection", () => {
       pid: 1,
       x: 1000 + gameConfig.botAttackRadiusPx - 10,
       y: 800,
+      vx: 0,
+      vy: 0,
       hp: 100,
     };
     expect(stateAfter(makeView({}, { enemies: [enemy] }))).toBe("Attack");
   });
 
   it("evades a nearby enemy when hp is below 40", () => {
-    const enemy = { pid: 1, x: 1100, y: 800, hp: 100 };
+    const enemy = { pid: 1, x: 1100, y: 800, vx: 0, vy: 0, hp: 100 };
     expect(stateAfter(makeView({ hp: 30 }, { enemies: [enemy] }))).toBe(
       "Evade",
     );
@@ -81,7 +83,7 @@ describe("BotController state selection", () => {
   });
 
   it("ignores destroyed enemies", () => {
-    const enemy = { pid: 1, x: 1050, y: 800, hp: 0 };
+    const enemy = { pid: 1, x: 1050, y: 800, vx: 0, vy: 0, hp: 0 };
     expect(stateAfter(makeView({}, { enemies: [enemy] }))).toBe("SeekBill");
   });
 });
@@ -110,6 +112,69 @@ describe("BotController aim", () => {
       makeView({}, { bills: [{ id: 1, x: 1500, y: 800 }] }),
     );
     expect(input.aimX).toBeGreaterThan(0.9);
+  });
+
+  it("leads a moving opponent while attacking", () => {
+    const bot = new BotController(3, "hard", createRng(2));
+    const input = bot.decide(
+      makeView(
+        {},
+        {
+          gameMode: "crashfest",
+          enemies: [{ pid: 1, x: 1500, y: 800, vx: 0, vy: 300, hp: 100 }],
+        },
+      ),
+    );
+    expect(input.aimY).toBeGreaterThan(0);
+  });
+
+  it("prioritizes vulnerable opponents", () => {
+    const bot = new BotController(3, "hard", createRng(2));
+    const input = bot.decide(
+      makeView(
+        {},
+        {
+          gameMode: "crashfest",
+          enemies: [
+            { pid: 1, x: 1000, y: 600, vx: 0, vy: 0, hp: 100 },
+            { pid: 2, x: 1250, y: 800, vx: 0, vy: 0, hp: 1 },
+          ],
+        },
+      ),
+    );
+    expect(input.aimX).toBeGreaterThan(0.7);
+  });
+
+  it("pressures opponents near a wall", () => {
+    const bot = new BotController(3, "hard", createRng(2));
+    const input = bot.decide(
+      makeView(
+        { x: 800, y: 760 },
+        {
+          gameMode: "crashfest",
+          enemies: [
+            { pid: 1, x: 1080, y: 760, vx: 0, vy: 0, hp: 100 },
+            { pid: 2, x: 800, y: 1100, vx: 0, vy: 0, hp: 100 },
+          ],
+        },
+      ),
+    );
+    expect(input.aimY).toBeGreaterThan(0.8);
+  });
+
+  it("uses a reproducible flank direction for a target", () => {
+    const run = (seed: number): number =>
+      new BotController(3, "hard", createRng(seed)).decide(
+        makeView(
+          {},
+          {
+            gameMode: "crashfest",
+            enemies: [{ pid: 1, x: 1500, y: 800, vx: 0, vy: 0, hp: 100 }],
+          },
+        ),
+      ).aimY;
+    expect(run(2)).toBe(run(2));
+    expect(Math.sign(run(2))).not.toBe(Math.sign(run(7)));
   });
 });
 
