@@ -36,12 +36,19 @@ Top-down 2D multiplayer vehicle combat arena game with Cash Run and Crashfest mo
 ## 4. Recommended Project Structure (AI Context)
 ```text
 src/
-├── components/     # React UI (Lobby, HUD, VirtualJoystick)
+├── components/        # React UI (lobby, HUD, JoystickPad, RotateHint)
 ├── game/
-│   ├── Engine.ts   # Main requestAnimationFrame loop coordinating physics, render, and net sync
-│   ├── Physics.ts  # Matter.js world, car bodies, arena boundaries, collision event handlers
-│   ├── Renderer.ts # PixiJS stage, camera zoom/follow logic, car sprites, smoke particle emitter
-│   └── Entities.ts # Data models for Car, CashBill, HomeBase, and Arena
+│   ├── Engine.ts      # requestAnimationFrame loop: fixed step, input, render, net sync
+│   ├── Physics.ts     # Matter.js adapter (world, car bodies, walls, collision contacts), see physics/
+│   ├── Renderer.ts    # PixiJS stage and camera; sprite layers in render/
+│   ├── WorldView.ts   # view model built from simulation state
+│   └── sim/           # Pure TypeScript match simulation (damage, bills, scoring, respawn)
 ├── network/
-│   └── PeerManager.ts # PeerJS connection lifecycle, serialization, and state broadcast/reconciliation
-└── types/          # Shared TypeScript interfaces for game state and P2P network packets
+│   ├── transport/     # Transport interface, PeerTransport (PeerJS), LocalTransport
+│   ├── protocol/      # message types, codec, validate/* for inbound messages
+│   └── sync/          # PingPong (RTT and host offset), SnapshotBuffer
+├── session/           # SessionController and lobby/match flows (solo, host, client)
+├── store/             # hudStore (10 Hz HUD values), lobbyStore
+└── types/             # Shared TypeScript types for game state and network messages
+```
+See `docs/ARCHITECTURE.md` section 5 for the full tree.

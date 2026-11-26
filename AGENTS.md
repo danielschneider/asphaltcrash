@@ -1,7 +1,18 @@
 # AGENTS.md – AsphaltCrash
 
 Instructions for AI coding agents working in this repository.
-Read in this order before any change: this file, `docs/ANALYSIS.md`, `docs/ARCHITECTURE.md`, `docs/NETWORK_PROTOCOL.md`, `docs/GAMEPLAY.md`, `docs/ROADMAP.md`.
+Required reading before any change: this file only. Read the other docs on demand, using the table below and the module map in section 3.1.
+
+| Read when touching | Read |
+|--------------------|------|
+| Network messages, validation, codec, handshake | `docs/NETWORK_PROTOCOL.md` sections 4, 7, 9 |
+| Gameplay rules, tunable values | `docs/GAMEPLAY.md` section 9 and `src/config/gameConfig.ts` |
+| Layering, new module, folder placement | `docs/ARCHITECTURE.md` sections 4, 5, 12 |
+| Physics (Matter.js adapter, handling) | `docs/ARCHITECTURE.md` section 6.3 |
+| Session and screen flow | `docs/ARCHITECTURE.md` section 6.9 |
+| iPad Safari limits | `docs/ARCHITECTURE.md` section 9 |
+| Roadmap task status, exit gates, device checks | `docs/ROADMAP.md` |
+| Decisions, assumptions, scope | `docs/ANALYSIS.md`, `docs/ARCHITECTURE.md` sections 13, 14 |
 
 ---
 
@@ -27,15 +38,61 @@ AsphaltCrash is a top-down 2D car combat and cash-collection arena game for iPad
 
 | Layer | Path | May import | Must not import |
 |-------|------|-----------|-----------------|
-| L2 domain | `src/game/sim/**`, `src/game/Entities.ts`, `src/game/bots/**`, `src/types/**`, `src/config/**` | TypeScript only, other L2 modules | `react`, `pixi.js`, `matter-js`, `peerjs`, DOM APIs, `src/network/**`, `src/components/**` |
-| Physics adapter | `src/game/Physics.ts` | `matter-js`, L2 | Everything else |
-| L0 renderer | `src/game/Renderer.ts`, `src/game/Effects.ts`, `src/game/Camera.ts` | `pixi.js`, L2 types | `peerjs`, `react`, `src/network/**` |
-| L1 network | `src/network/**` | `peerjs`, L2 types, `src/types/network.ts` | `react`, `pixi.js`, `src/components/**` |
-| L3 runtime | `src/game/Engine.ts`, `src/game/input/**`, `src/game/shadow/**` | L2, L1 interfaces, L0 renderer | `react` |
-| L4 session | `src/session/**` | L3, L1 | `pixi.js` directly |
-| L5 UI | `src/components/**`, `src/hooks/**`, `src/App.tsx`, `src/main.tsx` | React, L4, `src/store/**` | `matter-js`, `peerjs` directly |
+| Layer | Path | May import | Must not import |
+|-------|------|-----------|-----------------|
+| L2 domain | `src/game/sim/**`, `src/game/Rules.ts`, `src/game/WorldView.ts`, `src/game/bots/**`, `src/types/**`, `src/config/**` | TypeScript only, other L2 modules | `react`, `pixi.js`, `matter-js`, `peerjs`, `src/network/**`, `src/components/**` |
+| Physics adapter | `src/game/Physics.ts`, `src/game/physics/**` | `matter-js`, L2 | `react`, `pixi.js`, `peerjs`, `src/network/**`, `src/components/**` |
+| L0 renderer | `src/game/Renderer.ts`, `src/game/Effects.ts`, `src/game/Camera.ts`, `src/game/render/**` | `pixi.js`, L2 types | `react`, `matter-js`, `peerjs`, `src/network/**`, `src/components/**` |
+| L1 network | `src/network/**` | `peerjs`, L2 types, `src/types/network.ts` | `react`, `pixi.js`, `matter-js`, `src/components/**` |
+| L3 runtime | `src/game/Engine.ts`, `src/game/input/**` | L2, L1 interfaces, L0 renderer | `react`, `pixi.js`, `matter-js`, `peerjs`, `src/components/**` |
+| L4 session | `src/session/**` | L3, L1 | `pixi.js`, `matter-js`, `peerjs` |
+| L5 UI | `src/components/**`, `src/hooks/**`, `src/App.tsx`, `src/main.tsx` | React, L4, `src/store/**` | `matter-js`, `peerjs`, `src/game/sim/**`, `src/game/Engine.ts` |
+
+Enforcement: `eslint.config.mjs` (`LAYER_FILES`, `no-restricted-imports`) and `tests/architecture/layers.test.ts` check only the files listed above. Unclassified files (`src/game/audio/**`, `src/game/shaders/**`, `src/game/ground/**`, `src/game/arena.ts`, `carDesign.ts`, `carLabel.ts`) are covered only by the global ESLint rule: no `pixi.js`, `matter-js` or `peerjs` imports anywhere in `src/**` outside the layers that allow them.
 
 Keep the dependency direction downward. If a feature needs an upward dependency, add an interface in a lower layer and inject the implementation.
+
+### 3.1 Module map
+
+Symptom or feature to starting files and tests. Paths verified against the tree; "(none)" = no test.
+
+| Symptom / feature | Source file(s) | Tests |
+|-------------------|----------------|-------|
+| Car handling, steering, walls | `src/game/Physics.ts`, `src/game/physics/*`, `src/game/sim/aimDrive.ts` | `tests/game/Physics.test.ts`, `tests/game/physics/vec.test.ts` |
+| Collision damage, kills | `src/game/sim/damageResolver.ts`, `src/game/Rules.ts` (`applyDamage`, attribution) | `tests/game/sim/carDamage.test.ts`, `tests/game/Rules.test.ts` |
+| Respawn, destruction | `src/game/sim/respawn.ts`, `src/game/sim/CarState.ts` | `tests/game/sim/CarState.test.ts`, `tests/game/sim/MatchSimulation.test.ts` |
+| Bills, cargo, delivery | `src/game/sim/billFlow.ts`, `src/game/sim/BillSpawner.ts`, `src/game/Rules.ts` (`canDeliver`, `canPickUp`) | `tests/game/sim/BillSpawner.test.ts`, `tests/game/sim/MatchSimulation.test.ts` |
+| Match timer, scores, winners | `src/game/sim/Scoring.ts`, `src/game/WorldView.ts` (`resolveWinners`), `src/game/sim/MatchSimulation.ts` | `tests/game/sim/Scoring.test.ts` |
+| Simulation step order | `src/game/sim/MatchSimulation.ts`, `src/game/sim/matchConstants.ts`, `src/game/sim/time.ts` | `tests/game/sim/MatchSimulation.test.ts`, `tests/game/sim/time.test.ts` |
+| Determinism (golden digest) | `src/game/sim/MatchSimulation.ts`, `src/game/sim/Rng.ts` | `tests/game/sim/MatchSimulationDeterminism.test.ts` (update digest only for intended behaviour change) |
+| Bots | `src/game/bots/*`, `src/game/sim/botPerception.ts` | `tests/game/bots/BotController.test.ts`, `tests/game/bots/BotProfiles.test.ts` |
+| Rendering, sprites, particles | `src/game/Renderer.ts`, `src/game/render/*`, `src/game/Effects.ts` | `tests/game/Effects.test.ts`, `tests/session/matchRenderer.test.ts` |
+| Camera | `src/game/Camera.ts` | `tests/game/Camera.test.ts` |
+| Car damage visuals | `src/game/shaders/*` | `tests/game/shaders/carDamage.test.ts` |
+| Audio | `src/game/audio/*` | `tests/game/audio/audioMath.test.ts` |
+| Input, joystick, keyboard | `src/game/input/*`, `src/hooks/useJoystick.ts`, `src/hooks/useKeyboardInput.ts`, `src/components/controls/JoystickPad.tsx` | `tests/game/input/InputFrame.test.ts`, `tests/hooks/useJoystick.test.ts` (keyboard: none) |
+| Game loop, fixed step | `src/game/Engine.ts` | `tests/game/Engine.test.ts` |
+| Arena layout, ground | `src/game/arena.ts`, `src/game/ground/groundLayout.ts` | `tests/game/ground/groundLayout.test.ts` |
+| HUD | `src/components/hud/*`, `src/store/hudStore.ts`, `src/session/sessionHud.ts`, `src/session/networkHud.ts` | `tests/components/MatchScreen.test.tsx`, `tests/store/hudStore.test.ts`, `tests/network/match/MatchClock.test.ts` |
+| Lobby UI | `src/components/lobby/*`, `src/store/lobbyStore.ts` | `tests/components/LobbyScreen.test.tsx`, `tests/components/StartScreen.test.tsx`, `tests/store/lobbyStore.test.ts` |
+| Session state machine | `src/session/SessionController.ts`, `src/session/sessionState.ts`, `src/session/sessionDeps.ts`, `src/session/startArena.ts` | `tests/session/SessionController.test.ts` |
+| Solo flow | `src/session/soloSession.ts` | `tests/session/SessionController.solo.test.ts` |
+| Host lobby, roster | `src/session/hostLobby.ts`, `src/session/lobbyRoster.ts`, `src/session/playerNames.ts` | `tests/session/hostRoster.test.ts`, `tests/session/lobbyRoster.test.ts`, `tests/session/playerNames.test.ts` |
+| Client join, lobby connection | `src/session/clientLobby.ts`, `src/session/lobbyConnection.ts`, `src/session/roomCodeRules.ts`, `src/hooks/useJoinLinkCode.ts` | `tests/session/SessionController.network.test.ts`, `tests/session/lobby.test.ts`, `tests/components/MultiplayerPanel.test.tsx` |
+| Network match, host side | `src/session/networkMatchRunner.ts`, `src/session/MatchHost.ts`, `src/network/match/SnapshotPump.ts`, `src/network/match/startMessage.ts` | `tests/session/MatchHost.test.ts`, `tests/network/match/SnapshotPump.test.ts`, `tests/session/matchStartDelivery.test.ts` |
+| Network match, client side | `src/session/MatchClient.ts`, `src/network/match/InputSender.ts`, `src/network/match/InputReceiver.ts`, `src/network/match/MatchClock.ts` | `tests/session/MatchClient.test.ts`, `tests/network/match/InputSender.test.ts`, `tests/network/match/InputReceiver.test.ts` |
+| Connectivity indicator (RTT, jitter) | `src/session/hostConnectivity.ts`, `src/network/sync/PingPong.ts`, `src/components/hud/ConnectivitySignal.tsx` | `tests/session/hostConnectivity.test.ts`, `tests/network/sync/PingPong.test.ts` |
+| Message validation | `src/network/protocol/validate/*` | `tests/network/protocol/validate.test.ts`, `tests/network/protocol/validateEvents.test.ts` |
+| Wire codec, message types | `src/network/protocol/codec.ts`, `src/network/protocol/messages.ts` | `tests/network/protocol/codec.test.ts`, `tests/network/protocol/messageTypes.test.ts` |
+| Handshake (hello, welcome, reject) | `src/network/session/*` | `tests/network/session/Handshake.test.ts` |
+| Transport, PeerJS | `src/network/transport/*` | `tests/network/transport/PeerTransport.test.ts`, `tests/network/transport/LocalTransport.test.ts`, `tests/network/transport/peerJsFactory.test.ts` |
+| Room codes | `src/network/room/roomCode.ts`, `src/session/roomCodeRules.ts` | `tests/network/room/roomCode.test.ts` |
+| Snapshot interpolation | `src/network/sync/SnapshotBuffer.ts`, `src/network/match/RemoteView.ts`, `src/game/sim/interpolate.ts`, `src/game/sim/StateInterpolator.ts` | `tests/network/sync/SnapshotBuffer.test.ts`, `tests/network/match/RemoteView.test.ts`, `tests/game/sim/interpolate.test.ts` |
+| Tunables | `src/config/gameConfig.ts`, `src/config/gameConfigShape.ts`, `docs/GAMEPLAY.md` section 9 | `tests/docs/configSync.test.ts` |
+| Debug logs | `src/config/debugLog.ts`, `src/network/transport/transportLog.ts` | `tests/config/debugLog.test.ts` |
+| Layer rules | `eslint.config.mjs` | `tests/architecture/layers.test.ts` |
+| Result screen | `src/components/result/ResultScreen.tsx` | (none) |
+| Portrait hint, pause on orientation | `src/components/controls/RotateHint.tsx`, `src/hooks/useOrientationPause.ts` | (none) |
 
 ---
 
@@ -50,7 +107,7 @@ Keep the dependency direction downward. If a feature needs an upward dependency,
 - Hooks start with `use`. Event handlers start with `handle`. Booleans start with `is`, `has`, `should`.
 - Early returns. No nested ternaries. No deep prop drilling (use the `hudStore` or a context).
 - No global mutable variables. Module-level `const` only.
-- Components ≤ 300 lines. Extract logic into hooks when near the limit.
+- Files ≤ 300 lines: ESLint `max-lines` (error, blank lines and comments skipped) applies to all `src/**`. Extract logic into hooks or modules when near the limit.
 - No business logic inside JSX.
 - Structure a file as: exports, subcomponents, helpers, types.
 - Use functional and declarative patterns. Keep functions small.
@@ -63,7 +120,7 @@ Keep the dependency direction downward. If a feature needs an upward dependency,
 - Use the seeded RNG (`sim/Rng.ts`) for anything the host must reproduce. Never `Math.random()` inside `sim/`.
 
 ### 4.3 Networking rules
-- Every inbound message passes `validate.ts` before use.
+- Every inbound message passes `src/network/protocol/validate/*` before use.
 - Messages are versioned (`v: 1`). Bump only per NETWORK_PROTOCOL section 9.
 - Two PeerJS `DataConnection`s per remote peer: reliable (`reliable: true`) for control and events, unreliable (`reliable: false`) for `in` and `snap`. The flag is per connection in PeerJS 1.5.5, not per message.
 - Never trust client-supplied positions, scores, or bill ids.
@@ -81,7 +138,6 @@ Keep the dependency direction downward. If a feature needs an upward dependency,
 ---
 
 ## 5. Commands
-(Scripts are defined in P0. Until then, these commands do not exist.)
 
 | Command | Purpose |
 |---------|---------|
@@ -96,12 +152,14 @@ Keep the dependency direction downward. If a feature needs an upward dependency,
 
 `npm run check` must be green before any task is reported done and before any commit. It runs typecheck, lint, format:check, knip, and test:coverage.
 
+Logging: use `debugLog` (`src/config/debugLog.ts`, prints only in dev builds) for diagnostics. Do not add `console.log` to `src/**`. `console.error` is reserved for unexpected failures.
+
 Run all of `typecheck`, `lint`, `test`, `build` before reporting a task as complete.
 
 ---
 
 ## 6. Testing rules
-- Simulation, rules, bots, codec, validation, room codes and reconciler are unit-tested in Node with Vitest.
+- Simulation, rules, bots, codec, validation and room codes are unit-tested in Node with Vitest. `MatchSimulationDeterminism.test.ts` is a golden digest test; update its digest only for an intended behaviour change.
 - React components are tested with jsdom and Testing Library.
 - HTTP calls (if any, e.g. optional TURN config fetch) are mocked with msw. WebRTC is not mocked with msw; use `LocalTransport`.
 - Physics tests use fixed steps. Do not rely on real time.

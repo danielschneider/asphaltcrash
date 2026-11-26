@@ -70,7 +70,7 @@ Device targets: iPad (current iPadOS, Safari) primary; desktop Chrome for develo
 | P2.1 | Confirm for the pinned PeerJS version: create peer, connect, `reliable` option per connection, close events. Source already read for 1.5.5 (`reliable` per connection). Device test for A-01 and A-02. | ARCHITECTURE section 13 updated with source URLs and device results. Status: source read; device test pending. |
 | P2.2 | `Transport` interface, `PeerTransport`, `LocalTransport`. | Unit tests pass for `LocalTransport`. Status: implemented, device test pending. |
 | P2.3 | Room code generation and `asph-` mapping. | Unit tests for alphabet, length, collision retry. Status: implemented, device test pending. |
-| P2.4 | Minimal ping/pong between host and one client, on desktop and iPad. | RTT displayed. Status: implemented, device test pending. |
+| P2.4 | Minimal ping/pong between host and one client, on desktop and iPad. | RTT displayed. Status: implemented (decode fix in validate/sync.ts, refactor 2026-11-26), device test pending. |
 | P2.5 | Device tests use the GitHub Pages deployment (HTTPS, secure context). A tunnel is only needed for local `npm run dev` on iPad, if used at all. | Documented in `docs/ARCHITECTURE.md` section 11. |
 | P2.6 | Connection test on iPad over Wi-Fi and mobile data, STUN only. Record success rate per network type. | Results table added to this file. |
 
@@ -168,3 +168,4 @@ Device targets: iPad (current iPadOS, Safari) primary; desktop Chrome for develo
 | 2026-11-20 | P2 unit tests only (fake peers, no real network) | Handshake hello/welcome/reject and transport tests pass; no real-network result | desktop and iPad: pending |
 | – | PeerJS connect over mobile data (P2.6) | pending | – |
 | – | Snapshot bandwidth (P3) | pending | – |
+| 2026-11-26 | Refactor: module splits (validate/*, physics/*, render/*, sim resolvers, session split), ping/pong decode fix, snap bill limit `MAX_SNAP_BILLS` (commits 2972463..53c4435) | Desktop: `npm run check` green (see commit). Ping/pong disconnect fix needs iPad verification (AGENTS 6): pending | desktop Node/Vitest only; iPad pending |

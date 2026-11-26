@@ -44,14 +44,14 @@ Game traffic never passes through a server. Signaling traffic is tiny and stops 
 | Role | Who | Responsibilities |
 |------|-----|------------------|
 | **Host** | Room creator, or the device in solo mode | Owns the `MatchSimulation`. Runs physics, bots, bills, damage, scoring. Broadcasts snapshots and events. Accepts inputs. |
-| **Client** | Joined players (1–3 per room) | Sends input. Runs a local shadow simulation for its own car. Renders interpolated remote state. |
+| **Client** | Joined players (1–3 per room) | Sends input. Renders interpolated snapshot state for all cars, including its own (no shadow sim yet, see 6.8). |
 | **Solo host** | Single device, zero remote peers | Same as host, transport is `LocalTransport` (in-memory). |
 
 ### 3.2 Who simulates what
 
 | Entity | Host | Client |
 |--------|------|--------|
-| Own car | Authoritative | Predicted (shadow simulation), corrected by snapshots |
+| Own car | Authoritative | Interpolated from snapshots (prediction planned, 6.8) |
 | Remote human car | Authoritative | Interpolated from snapshots |
 | Bot car | Authoritative | Interpolated from snapshots |
 | Cash bills | Authoritative | Interpolated/static from snapshots |
@@ -69,20 +69,21 @@ Game traffic never passes through a server. Signaling traffic is tiny and stops 
 │    overlays: JoystickPad, RotateHint, ConnectionBanner   │
 ├────────────────────────────────────────────────────────────────────────┤
 │ L4 Application / Session controller                                    │
-│    SessionController (state machine: idle→creating→lobby→playing→end)  │
-│    MatchController (start/stop, bot slots, mode selection)             │
+│    SessionController (state machine, see 6.9)                          │
+│    soloSession, hostLobby, clientLobby, networkMatchRunner,            │
+│    MatchHost / MatchClient, startArena                                 │
 ├────────────────────────────────────────────────────────────────────────┤
-│ L3 Game runtime                                                        │
-│    Engine (rAF loop, fixed-step accumulator, interpolation clock)      │
+│ L3 game runtime                                                        │
+│    Engine (rAF loop, fixed-step accumulator, visibility pause)         │
 │    Input (joystick buffer → InputFrame)                                │
 ├────────────────────────────────────────────────────────────────────────┤
 │ L2 Domain / simulation (pure TypeScript, no DOM)                       │
-│    MatchSimulation  →  Physics (Matter.js)  +  Rules (damage, cash,    │
-│                        scoring, respawn)  +  Bots (FSM)                │
+│    MatchSimulation  →  damageResolver, respawn, billFlow, Scoring,     │
+│                        Rules helpers, BotController (FSM)              │
 ├────────────────────────────────────────────────────────────────────────┤
 │ L1 Networking                                                          │
 │    Transport interface → PeerTransport | LocalTransport               │
-│    Protocol (encode/decode, versioning), Snapshot buffer, Clock sync   │
+│    Protocol (codec, validate/*), SnapshotBuffer, PingPong (RTT, offset)│
 ├────────────────────────────────────────────────────────────────────────┤
 │ L0 Platform                                                            │
 │    PixiJS renderer (WebGL2, Canvas fallback), WebRTC, Pointer Events,  │
@@ -90,99 +91,98 @@ Game traffic never passes through a server. Signaling traffic is tiny and stops 
 └────────────────────────────────────────────────────────────────────────┘
 ```
 
-Dependency rule: a layer may only depend on layers below it. L2 must not import from L0, L1, L3, L4 or L5. Enforce with an ESLint `no-restricted-imports` rule (see section 12).
+Dependency rule: a layer may only depend on layers below it. L2 must not import from L0, L1, L3, L4 or L5. Enforced by ESLint `no-restricted-imports` (`eslint.config.mjs`, `LAYER_FILES`) and by `tests/architecture/layers.test.ts` (section 12). The physics adapter (`Physics.ts`, `physics/**`) and the renderer (`render/**`) are separate rows in the enforcement tables. Unclassified folders (`audio`, `shaders`, `ground`) are covered only by the global rule that no file outside the allowed layers imports Pixi, Matter or PeerJS.
 
 ---
 
-## 5. Proposed source tree
+## 5. Source tree
 
-The README tree is kept as the baseline and extended.
+Actual tree at commit 53c4435. `[Lx]` = layer (section 4). Items marked "planned" are not created yet.
 
 ```
 asphaltcrash/
-├── AGENTS.md
-├── README.md
-├── docs/
-│   ├── ANALYSIS.md
-│   ├── ARCHITECTURE.md
-│   ├── NETWORK_PROTOCOL.md
-│   ├── GAMEPLAY.md
-│   └── ROADMAP.md
-├── index.html
-├── vite.config.ts              # base: '/asphaltcrash/' for GitHub Pages
-├── tsconfig.json               # strict: true
-├── eslint.config.mjs              # ESLint flat config (not .ts, see section 12)
-├── .github/workflows/pages.yml    # only non-TypeScript file, CI/deploy
-├── public/
-│   └── manifest.webmanifest    # P5
+├── AGENTS.md, README.md, eslint.config.mjs, knip.json, vite.config.ts,
+│   tsconfig.json, tsconfig.node.json, index.html, package.json
+├── .github/workflows/
+│   ├── check.yml                   # CI: npm ci, npm run check
+│   └── main.yml                    # build and deploy to GitHub Pages
+├── docs/                           # ANALYSIS, ARCHITECTURE, GAMEPLAY, NETWORK_PROTOCOL, ROADMAP
 ├── src/
-│   ├── main.tsx                # React root, mounts App
-│   ├── App.tsx                 # screen router only
-│   ├── components/             # React UI, no game logic
-│   │   ├── lobby/              # StartScreen, LobbyScreen, RoomCode, JoinQr
-│   │   ├── hud/                # Hud, Scoreboard, ConnectionBanner, TimerBadge
-│   │   ├── controls/           # JoystickPad, RotateHint
-│   │   └── common/             # Button, Modal (only if reused)
-│   ├── game/
-│   │   ├── Engine.ts           # rAF loop, fixed-step accumulator, frame orchestration
-│   │   ├── Physics.ts          # Matter.js world wrapper (L2 adapter, see 6.3)
-│   │   ├── Renderer.ts         # PixiJS stage, camera, sprite pool (L0)
-│   │   ├── Camera.ts           # follow, clamp to arena, zoom limits
-│   │   ├── Effects.ts          # smoke, sparks; ParticleContainer pools (L0)
-│   │   ├── Entities.ts         # Car, CashBill, HomeBase, Arena (plain data)
-│   │   ├── sim/
-│   │   │   ├── MatchSimulation.ts  # tick(): inputs → physics → rules → events
-│   │   │   ├── Rules.ts        # damage model, cash pickup/delivery, respawn
-│   │   │   ├── BillSpawner.ts  # seeded RNG, spawn budget, respawn timer
-│   │   │   ├── Scoring.ts      # score and win condition
-│   │   │   └── Rng.ts          # seeded PRNG (mulberry32)
-│   │   ├── bots/
-│   │   │   ├── BotController.ts    # FSM, produces InputFrame
-│   │   │   └── BotProfiles.ts      # easy/normal/hard parameters
-│   │   ├── input/
-│   │   │   ├── InputBuffer.ts      # latest joystick/button state, no React
-│   │   │   └── InputFrame.ts       # type + clamp helpers
-│   │   └── shadow/
-│   │       ├── ShadowCar.ts        # local prediction world (own car only)
-│   │       └── Reconciler.ts       # rewind/replay, error smoothing
-│   ├── network/
-│   │   ├── PeerManager.ts      # PeerJS lifecycle (creates peer, connections)
-│   │   ├── transport/
-│   │   │   ├── Transport.ts        # interface
-│   │   │   ├── PeerTransport.ts    # PeerJS implementation
-│   │   │   └── LocalTransport.ts   # in-memory, for solo mode and tests
-│   │   ├── protocol/
-│   │   │   ├── messages.ts         # message unions, versioning
-│   │   │   ├── codec.ts            # encode/decode, quantization
-│   │   │   └── validate.ts         # runtime validation of inbound data
-│   │   ├── sync/
-│   │   │   ├── SnapshotBuffer.ts   # ring buffer, interpolation sampling
-│   │   │   └── ClockSync.ts        # RTT and host time offset
-│   │   └── room/
-│   │       ├── roomCode.ts         # generate/validate codes, PeerJS id mapping
-│   │       └── Reconnect.ts        # token storage, rejoin window
-│   ├── session/
+│   ├── main.tsx, App.tsx           # [L5] React root; screen router only
+│   ├── components/                 # [L5] React UI, no game logic
+│   │   ├── brand/Brand.tsx
+│   │   ├── controls/               # JoystickPad, RotateHint
+│   │   ├── hud/                    # MatchScreen, NetworkMatchScreen, Hud, TimerBadge, ConnectivitySignal, formatters
+│   │   ├── lobby/                  # StartScreen, LobbyScreen, MultiplayerPanel, ModeSwitch, ChoiceGroup, lobbyOptions
+│   │   └── result/ResultScreen.tsx
+│   ├── hooks/                      # [L5] useSession, useHud, useLobby, useJoystick, useKeyboardInput,
+│   │                               #      useJoinLinkCode, useOrientationPause, usePlayerName
+│   ├── store/                      # [L5] hudStore (10 Hz HUD values), lobbyStore
+│   ├── session/                    # [L4] see 6.9
 │   │   ├── SessionController.ts    # state machine across screens
-│   │   ├── HostSession.ts          # host-side lobby + match orchestration
-│   │   └── ClientSession.ts        # client-side lobby + match orchestration
-│   ├── store/
-│   │   └── hudStore.ts             # external store for 10 Hz HUD values
-│   ├── hooks/                      # useHud, useSession, useJoystick (use* prefix)
-│   ├── config/
-│   │   ├── gameConfig.ts           # all tunables (GAMEPLAY.md values)
-│   │   └── env.ts                  # VITE_* reads, TURN config
-│   ├── types/
-│   │   ├── game.ts                 # shared domain types
-│   │   └── network.ts              # shared network types
-│   └── test/
-│       ├── fixtures/
-│       └── msw/                    # mock handlers for HTTP-level calls (if any)
-└── tests/                          # Vitest suites (mirrors src/)
+│   │   ├── sessionState.ts, sessionDeps.ts, sessionHud.ts, networkHud.ts
+│   │   ├── soloSession.ts          # solo vs CPU flow
+│   │   ├── networkMatchRunner.ts   # network match loop (host and client)
+│   │   ├── hostLobby.ts, clientLobby.ts, lobbyConnection.ts, lobbyRoster.ts
+│   │   ├── MatchHost.ts, MatchClient.ts    # host and client match drivers
+│   │   ├── hostConnectivity.ts     # per-peer RTT and jitter for the HUD
+│   │   ├── startArena.ts           # arena from the start message
+│   │   ├── roomCodeRules.ts, playerNames.ts, frameSeconds.ts
+│   ├── game/
+│   │   ├── Engine.ts               # [L3] rAF loop, fixed step 1/60 s, visibility pause
+│   │   ├── input/                  # [L3] InputBuffer, InputFrame, InputSource, LocalInputSource
+│   │   ├── Physics.ts              # [adapter] Matter.js world wrapper (only file that owns the Engine)
+│   │   ├── physics/                # [adapter] bodies, carControl, contacts, types, vec
+│   │   ├── Renderer.ts             # [L0] Pixi stage, world layers
+│   │   ├── render/                 # [L0] arenaLayer, billLayer, carLayer, particles, palette
+│   │   ├── Camera.ts, Effects.ts   # [L0] follow and zoom; smoke and sparks
+│   │   ├── Rules.ts, WorldView.ts  # [L2] rule helpers; view building; resolveWinners
+│   │   ├── sim/                    # [L2] pure simulation
+│   │   │   ├── MatchSimulation.ts  # tick: inputs, physics, rules, events
+│   │   │   ├── damageResolver.ts, respawn.ts, CarState.ts, billFlow.ts, BillSpawner.ts
+│   │   │   ├── Scoring.ts, matchConstants.ts, time.ts, simState.ts
+│   │   │   ├── aimDrive.ts         # joystick aim to steer and throttle
+│   │   │   ├── botPerception.ts    # bot view of the match state
+│   │   │   ├── interpolate.ts, StateInterpolator.ts   # sim state interpolation for rendering
+│   │   │   ├── Rng.ts              # seeded PRNG (mulberry32)
+│   │   │   └── testing.ts          # test-only hook (placeCarForTest)
+│   │   ├── bots/                   # [L2] BotController (FSM), BotProfiles, botTargeting, botPerceptionTypes
+│   │   ├── audio/                  # unclassified: audioMath, CarAudio, carVoice
+│   │   ├── shaders/                # unclassified: carDamage, carDamageMarks, carDamageShader
+│   │   ├── ground/groundLayout.ts  # unclassified: arena ground layout
+│   │   └── arena.ts, carDesign.ts, carLabel.ts   # unclassified
+│   ├── network/                    # [L1]
+│   │   ├── transport/              # Transport (interface), PeerTransport, LocalTransport,
+│   │   │                           # peerJsFactory, peerTypes, transportHelpers, transportLog
+│   │   ├── protocol/               # messages.ts (unions), codec.ts (encode/decode)
+│   │   │   └── validate/           # events, input, lobby, match, snap, start, sync,
+│   │   │                           # message, primitives, invalidCounter, index
+│   │   ├── session/                # handshake: HandshakeHost, HandshakeClient, RosterHandshakeHost
+│   │   ├── match/                  # InputSender, InputReceiver, MatchClock, RemoteView,
+│   │   │                           # SnapshotPump, snapshotStride, startMessage
+│   │   ├── sync/                   # PingPong (RTT, host offset), SnapshotBuffer
+│   │   └── room/roomCode.ts        # room code generation and validation
+│   ├── config/                     # debugLog, gameConfig, gameConfigShape, spawnPoints
+│   ├── types/                      # game.ts (domain), network.ts (network)
+│   ├── styles/                     # CSS split: base, brand, controls, global, hud, joystick,
+│   │                               #            layout, lobby, responsive, result, utilities
+│   └── test/msw/server.ts          # msw server for tests
+└── tests/                          # Vitest suites, mirror src/; plus architecture/layers.test.ts,
+                                    # docs/configSync.test.ts, setup.ts, smoke.test.ts
 ```
 
+Planned, not yet created (from ROADMAP):
+- `src/game/shadow/ShadowCar.ts`, `Reconciler.ts`: own-car prediction (P3.5).
+- `src/network/room/Reconnect.ts`: token storage and rejoin window (P4.5).
+- `src/config/env.ts`: VITE_* and TURN config (only if TURN is approved, Q-02).
+- `src/components/lobby/RoomCode`, `JoinQr`: QR display (P5.2).
+- `public/manifest.webmanifest`: PWA (P5.4).
+
+Removed during the refactor (replaced): `game/Entities.ts` (now `WorldView.ts`, `sim/simState.ts`, `sim/CarState.ts`), `network/PeerManager.ts` (now `transport/PeerTransport.ts`), `network/sync/ClockSync.ts` (now `sync/PingPong.ts`), `session/HostSession.ts` and `ClientSession.ts` (now `networkMatchRunner.ts`, `hostLobby.ts`, `clientLobby.ts`), `network/protocol/validate.ts` (now `validate/*`).
+
 Notes:
-- `src/game/Entities.ts` and `src/game/sim/*` are L2 domain. They must not import Pixi or Matter types directly except through `Physics.ts`.
-- The README tree had no `session/`, `store/`, `hooks/`, `config/`, `network/transport/`, `network/protocol/` or `network/sync/`. These are added because the analysis requires them. The README tree remains valid as the high-level grouping.
+- `src/game/sim/**` is L2 domain. It must not import Pixi or Matter types directly except through `Physics.ts`.
+- Files are capped at 300 lines (ESLint `max-lines` on all `src/**`). Split modules before they reach the limit.
 
 ---
 
@@ -195,8 +195,8 @@ Notes:
   1. Read `InputBuffer` (latest values).
   2. Drain network inbox (`SnapshotBuffer.push`, events).
   3. Host: `sim.tick` for each due step, broadcast snapshot every 3rd tick (20 Hz).
-  4. Client: `ShadowCar.step` for each due step, `Reconciler.apply` on new authoritative snapshot.
-  5. Renderer updates sprites from current state (host: sim; client: interpolated remote + shadow local).
+   4. Client: own-car prediction (`ShadowCar`, `Reconciler`) is planned (P3.5), not implemented.
+   5. Renderer updates sprites from current state (host: sim; client: interpolated snapshot state).
   6. Camera update, effects update.
   7. HUD store push every 6th frame (10 Hz).
 - Pause conditions: `document.visibilityState === 'hidden'` → loop stops, host broadcasts `pause` event if it is host (see R-04).
@@ -305,11 +305,12 @@ Every message carries `v: 1`. Host rejects clients with a different `v` with `re
 - Interpolate position linearly, angle with shortest-arc lerp.
 - If render time is beyond the newest snapshot by more than 200 ms, freeze at newest (no extrapolation for remote cars in v1).
 
-#### Clock sync
-Client sends `ping` every 2 s over reliable channel. `pong` returns host time. Client maintains `hostTimeOffset` (median of last 5 samples) and `rtt`. Used for interpolation time and for HUD ping display.
+#### Ping/pong and clock sync
+Client sends `ping` every 2 s over reliable channel. `pong` echoes `c` and returns host time `h`. `src/network/sync/PingPong.ts` computes `rtt = now - c`, `hostTimeOffset = h - (c + rtt/2)`, and keeps the median of the last 5 samples (`RttTracker`). Host-side jitter per peer is tracked in `session/hostConnectivity.ts`. Used for interpolation time and the connectivity signal. Ping/pong decode is validated in `protocol/validate/sync.ts`. A disconnect bug fixed in the refactor is awaiting iPad verification (ROADMAP section 9).
 
-### 6.8 Shadow simulation and reconciliation (own car)
-- `ShadowCar` = local Matter world with: own car body, static arena walls, and remote cars as kinematic bodies at their interpolated positions (so the local car can bump into them visually).
+### 6.8 Shadow simulation and reconciliation (own car) - PLANNED, P3.5
+Not implemented: `src/game/shadow/` and `Reconciler` do not exist. Clients render their own car from the interpolated snapshot path (`RemoteView`).
+- `ShadowCar` (planned) = local Matter world with: own car body, static arena walls, and remote cars as kinematic bodies at their interpolated positions (so the local car can bump into them visually).
 - On each input: store `{seq, input, dt}` in pending list. Apply to shadow immediately.
 - On authoritative snapshot with `ackSeq` (last input applied by host for this car):
   1. Set shadow body state to host state at `ackSeq`.
@@ -318,6 +319,8 @@ Client sends `ping` every 2 s over reliable channel. `pong` returns host time. C
 - Host applies inputs in arrival order; if an input arrives late it is applied on the next tick (no rollback on host).
 
 ### 6.9 Session and lobby (L4)
+Modules: `SessionController.ts` (state machine) with `sessionState.ts` (states), `sessionDeps.ts` (injected deps), `sessionHud.ts`, `soloSession.ts` (solo), `hostLobby.ts` and `clientLobby.ts` (lobby), `lobbyConnection.ts`, `networkMatchRunner.ts` (match loop), `startArena.ts`, `MatchHost.ts` and `MatchClient.ts`.
+
 State machine (`SessionController`):
 ```
 idle ──createRoom──► hosting(lobby) ──startMatch──► playing ──matchEnd──► ended ──backToLobby──► hosting(lobby)
@@ -386,12 +389,12 @@ The host sends `gameMode` in `start.cfg`; clients use it to create the matching 
 | Viewport height | CSS `height: 100dvh` with `100vh` fallback | `index.html` / global CSS |
 | Safe areas | `env(safe-area-inset-*)` padding on HUD | CSS |
 | Scroll/zoom gestures | `touch-action: none` on game canvas and joystick; lobby content scrolls vertically when it exceeds the viewport; `overscroll-behavior: none` on body; `user-scalable=no` in meta (ignored in some iOS settings, so `touch-action` is the real guard) | CSS, `index.html` |
-| Audio unlock | First tap on Start resumes `AudioContext` | `StartScreen` |
-| Background suspension | `visibilitychange` pauses loop; host broadcasts pause | `Engine.ts`, `SessionController` |
-| Screen sleep | `navigator.wakeLock.request('screen')` if available, released on hide | `session/HostSession.ts` |
-| Orientation | No lock on web; portrait shows `RotateHint` | `RotateHint` (CSS media query + `matchMedia`) |
-| Memory | Pixi resolution cap, pooled sprites, texture atlas | `Renderer.ts` |
-| Storage | `sessionStorage` for reconnection token only | `Reconnect.ts` |
+| Audio unlock | First tap on Start resumes `AudioContext` | `game/audio/CarAudio.ts`, `components/lobby/StartScreen.tsx` |
+| Background suspension | `visibilitychange` pauses loop (`Engine.ts`); host `pause` broadcast not yet wired (see ROADMAP P4.8) | `game/Engine.ts` |
+| Screen sleep | `navigator.wakeLock.request('screen')` if available, released on hide | PLANNED (P4.8), not implemented |
+| Orientation | No lock on web; portrait shows `RotateHint` | `components/controls/RotateHint.tsx`, `hooks/useOrientationPause.ts` |
+| Memory | Pixi resolution cap, pooled sprites | `game/Renderer.ts`, `game/render/*` |
+| Storage | `sessionStorage` for reconnection token only | PLANNED (P4.5), `network/room/Reconnect.ts` not created |
 | Hosting | GitHub Pages over HTTPS, no server-side routes | `vite.config.ts`, `pages.yml` |
 | Fullscreen | Not relied on. Optional PWA standalone. | P5 |
 
@@ -402,7 +405,7 @@ Items marked "verify on device" in the roadmap must be tested on a real iPad bef
 ## 10. Configuration
 All tunables live in `src/config/gameConfig.ts` as a single typed object (const, no enums). Values are listed in `GAMEPLAY.md` section 9. Network constants (`SNAPSHOT_HZ=20`, `INPUT_HZ=30`, `INTERP_DELAY_MS=100`, `RECONNECT_WINDOW_MS=45000`, `MAX_HUMANS=4`, `MAX_CARS=16`, i.e. `gameConfig.maxCars`) are in the same file.
 
-Environment (build-time, Vite):
+Environment (build-time, Vite; `VITE_TURN_*` and peer overrides are planned, not read anywhere in `src/` yet):
 | Variable | Purpose | Required |
 |----------|---------|----------|
 | `VITE_BASE_PATH` | Vite `base`, e.g. `/asphaltcrash/` | yes for Pages |
@@ -428,27 +431,27 @@ Vite exposes only `VITE_*` variables to the client bundle. Do not put server sec
 | Gate | Tool | Rule |
 |------|------|------|
 | Types | `tsc --noEmit` with `strict: true`, `noUncheckedIndexedAccess: true` | No `any` without comment justification |
-| Lint | ESLint with `typescript-eslint`, `react-hooks`, `no-restricted-imports` | L2 must not import `pixi.js`, `matter-js`, `peerjs`, `react` |
-| Format | Prettier | Repository default |
-| Unit tests | Vitest | Sim rules, codec round trip, bot FSM, reconciler, room code |
+| Lint | ESLint with `typescript-eslint`, `react-hooks`, `no-restricted-imports` | Layer rules per `LAYER_FILES` in `eslint.config.mjs`; L2 must not import `pixi.js`, `matter-js`, `peerjs`, `react` |
+| Format | Prettier | Repository default (`format:check` on `src` and `tests`) |
+| Unit tests | Vitest | Sim rules, codec round trip, bot FSM, PingPong, room code, validation. Reconciler is planned, not implemented. |
+| Determinism | `tests/game/sim/MatchSimulationDeterminism.test.ts` | Golden digest per game mode (fixed seed, 3000 ticks). Update only for an intended behaviour change. |
 | HTTP mocks | msw | Only where HTTP is used (e.g. optional TURN credential fetch). WebRTC is not mockable with msw; use `LocalTransport` instead. |
-| Component size | Lint rule or review | Components ≤ 300 lines |
-| Device test | Manual checklist in ROADMAP | iPad Safari on Wi-Fi and mobile data |
+| File size | ESLint `max-lines` (300, blank lines and comments skipped) on all `src/**` | Hard lint error |
 | Import cycles | `eslint-plugin-import-x` (`import-x/no-cycle`, `import-x/no-duplicates`) | No circular imports between modules; no duplicate import statements |
-| Cognitive complexity | `eslint-plugin-sonarjs` (`sonarjs/cognitive-complexity` at 15 for `src/game/sim/**`, `Physics.ts`, `Rules.ts`; off elsewhere) | Strict limit only in deterministic core |
-| Component size | ESLint `max-lines` (300, blank lines and comments skipped) on `src/components/**` and `src/hooks/**` | Hard lint error, replaces review-only check |
-| Restricted properties | ESLint `no-restricted-properties` | `Math.random`, `Date.now`, `performance.now`, `process.env` forbidden per layer (sim, bots, config, Physics, Rules; `process.env` also in game and components) |
+| Cognitive complexity | `eslint-plugin-sonarjs` (`sonarjs/cognitive-complexity` at 15 for `src/game/sim/**`, `Physics.ts`, `physics/**`, `Rules.ts`; off elsewhere) | Strict limit only in deterministic core |
+| Restricted properties | ESLint `no-restricted-properties` | `Math.random`, `Date.now`, `performance.now` forbidden in sim, bots, config, Physics, Rules; `process.env` forbidden in game and components |
 | Enum and React.FC ban | ESLint `no-restricted-syntax` on `src/**` | No `enum` declarations; no `React.FC` / `FC` type references |
 | No explicit any | `@typescript-eslint/no-explicit-any` on `src/**` and `tests/**` | Error; any use requires a justification comment |
+| Logging | `debugLog` (`src/config/debugLog.ts`) | No `console.log` in `src/**`; `console.error` only for unexpected failures |
 | Unused code | `knip` (`npm run knip`) | No unused files, exports or dependencies |
 | Coverage | `@vitest/coverage-v8` (`npm run test:coverage`) | Reported only; no coverage threshold yet |
 | Layer scanner test | `tests/architecture/layers.test.ts` (Vitest) | Scans imports against the layer table in section 3 |
 | Config sync test | `tests/docs/configSync.test.ts` (Vitest) | Every `gameConfig` key is documented in GAMEPLAY section 9 or allowlisted; no stale entries |
+| Device test | Manual checklist in ROADMAP section 8 and 9 | iPad Safari on Wi-Fi and mobile data |
 
 Not in use:
 - `eslint-plugin-boundaries` was skipped: install failed with ETARGET (`@boundaries/config@1.0.3` not found). Layer rules are enforced by `no-restricted-imports` plus the layer scanner test instead.
 - `dependency-cruiser` (18.8.0) is installed as a devDependency but not wired into any script or config.
-
 ESLint config format: the config is `eslint.config.mjs`, not `eslint.config.ts`. ESLint 10 needs `jiti` to load TypeScript config files on Node 26, and `jiti` is not an approved dependency (AGENTS 2). The layer rules (`no-restricted-imports`) are defined in `eslint.config.mjs`.
 
 ---
@@ -488,10 +491,10 @@ ESLint config format: the config is `eslint.config.mjs`, not `eslint.config.ts`.
 | ADR-012 | No backend in v1 | Accepted |
 | ADR-014 | Exact pinned versions: react 19.3.1, react-dom 19.3.1, pixi.js 8.23.0, matter-js 0.20.0, @types/matter-js 0.20.0, @types/react 19.3.0, @types/react-dom 19.3.0, typescript 5.9.3 (typescript-eslint 8.73.0 peer requires typescript <6.1), vite 8.3.8, @vitejs/plugin-react 6.3.0, vitest 5.1.1, jsdom 31.0.1, msw 3.0.7, @testing-library/react 16.3.3, @testing-library/dom 10.4.2, eslint 10.15.0, typescript-eslint 8.73.0, eslint-plugin-react-hooks 7.1.1, prettier 3.10.1. Node v26.13.1, npm 12.0.2 | Accepted |
 | ADR-015 | Node 26 / ESLint 10: `eslint.config.mjs` instead of `.ts` (jiti not approved) | Accepted |
-| ADR-016 | Transport seam: `LocalTransport` loopback through JSON codec; `PeerTransport` stub (throws until P2) | Accepted |
+| ADR-016 | Transport seam: `LocalTransport` loopback through JSON codec; `PeerTransport` wraps PeerJS through an injected factory | Accepted |
 | ADR-017 | Simulation seam: `MatchSimulation.step()` takes no args (fixed step), `setInput(pid)`, `MatchSnapshot` uses full names mapped to wire names in codec only | Accepted |
 | ADR-018 | Physics seam: only `Physics.ts` imports matter-js, plain contact events, impulse derived | Accepted |
 | ADR-019 | Renderer seam: `WorldView` input; `ParticleContainer` imported from `pixi.js` main entry (subpath has no .d.ts) | Accepted |
 | ADR-020 | `SessionController`: solo states; network lobby and match states; `endedNetwork` returns to the lobby (`returnToLobby`) and keeps the room open | Accepted |
 | ADR-021 | Static checks: import-x (cycles, duplicates), sonarjs (complexity in sim core), knip (unused code), coverage-v8 (report only, no threshold); eslint-plugin-boundaries skipped (ETARGET `@boundaries/config@1.0.3`), dependency-cruiser installed but unused | Accepted |
-| ADR-022 | PeerJS 1.5.5 pinned; injected PeerFactory; one reliable plus one unreliable DataConnection per peer; JSON serialization; handshake in src/network/session | Accepted |
+| ADR-022 | PeerJS 1.5.5 pinned; injected PeerFactory (`transport/peerJsFactory.ts`); one reliable plus one unreliable DataConnection per peer; JSON serialization; handshake in `src/network/session` | Accepted |

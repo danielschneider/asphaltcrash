@@ -9,7 +9,7 @@ Transport: WebRTC data channels via PeerJS 1.5.5 (see `ARCHITECTURE.md` section 
 1. Host is authoritative. Clients send intent (inputs), never state.
 2. Two channels per connection: reliable/ordered for control and events, unreliable/unordered for high-rate state.
 3. Every high-rate message carries a monotonically increasing `seq` or `tick` so stale data is discarded.
-4. Inbound data is untrusted: validate every field before use (`validate.ts`). Invalid messages are dropped and counted; three invalid messages in 5 s disconnect the peer.
+4. Inbound data is untrusted: validate every field before use (`src/network/protocol/validate/*`). Invalid messages are dropped and counted; three invalid messages in 5 s disconnect the peer.
 5. Encoding in v1 is JSON with short keys and numeric arrays. Binary (DataView) encoding is a planned v2 optimization, gated on measured bandwidth.
 
 ---
