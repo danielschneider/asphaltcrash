@@ -1,3 +1,4 @@
+import { debugLog } from "../config/debugLog";
 import { gameConfig } from "../config/gameConfig";
 import type { InputFrame } from "../game/input/InputFrame";
 import type { MatchSimulation } from "../game/sim/MatchSimulation";
@@ -135,8 +136,10 @@ export class MatchHost {
     this.matchId = this.deps.newMatchId();
     this.phaseValue = MATCH_HOST_PHASE.waiting;
     const message = buildStart(this.setup, this.matchId, this.carNames);
-    console.log(
-      `[mp][host] start sent clients=${this.clientPids.length} cars=${this.sim.snapshot().cars.length}`,
+    debugLog(
+      "mp:host",
+      () =>
+        `start sent clients=${this.clientPids.length} cars=${this.sim.snapshot().cars.length}`,
     );
     for (const pid of this.clientPids) {
       this.sendToPid(pid, message, "reliable");
@@ -147,7 +150,7 @@ export class MatchHost {
     }
     this.readyTimer = this.deps.setTimeout(() => {
       this.readyTimer = null;
-      console.log("[mp][host] ready timeout -> running anyway");
+      debugLog("mp:host", "ready timeout -> running anyway");
       this.markRunning();
     }, gameConfig.matchReadyTimeoutMs);
   }
@@ -198,7 +201,7 @@ export class MatchHost {
   private handleReady(msg: NetworkMessage, pid: number): boolean {
     if (this.phaseValue !== MATCH_HOST_PHASE.waiting) return false;
     const result = validateReady(msg, this.matchId);
-    console.log(`[mp][host] ready received ok=${result.ok}`);
+    debugLog("mp:host", () => `ready received ok=${result.ok}`);
     if (!result.ok) return false;
     this.readyPids.add(pid);
     if (this.readyPids.size === this.clientPids.length) {
@@ -216,8 +219,9 @@ export class MatchHost {
     this.lastNowMs = this.deps.now();
     this.accumulatorMs = 0;
     this.backlogMs = 0;
-    console.log(
-      `[mp][host] running ready=${this.readyPids.size}/${this.clientPids.length}`,
+    debugLog(
+      "mp:host",
+      () => `running ready=${this.readyPids.size}/${this.clientPids.length}`,
     );
   }
 
@@ -233,8 +237,10 @@ export class MatchHost {
       this.broadcastSnapshots();
     }
     if (tick % 60 === 0) {
-      console.log(
-        `[mp][host] tick=${tick} cars=${this.sim.snapshot().cars.length} snapsSent=${this.snapsSent}`,
+      debugLog(
+        "mp:host",
+        () =>
+          `tick=${tick} cars=${this.sim.snapshot().cars.length} snapsSent=${this.snapsSent}`,
       );
     }
     if (
@@ -312,8 +318,9 @@ export class MatchHost {
 
   private finish(): void {
     this.phaseValue = MATCH_HOST_PHASE.finished;
-    console.log(
-      `[mp][host] match end tick=${this.sim.tick} snapsSent=${this.snapsSent}`,
+    debugLog(
+      "mp:host",
+      () => `match end tick=${this.sim.tick} snapsSent=${this.snapsSent}`,
     );
     const end = this.buildEnd();
     for (const pid of this.clientPids) {

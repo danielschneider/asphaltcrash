@@ -1,3 +1,4 @@
+import { debugLog } from "../config/debugLog";
 import type { WorldRenderer } from "../game/Renderer";
 import type { InputBuffer } from "../game/input/InputBuffer";
 import { buildArenaView } from "../game/arena";
@@ -133,7 +134,7 @@ export class MatchClient {
 
   private handleStart(raw: NetworkMessage): void {
     const parsed = parseStart(raw);
-    console.log(`[mp][client] start received ok=${parsed.ok}`);
+    debugLog("mp:client", () => `start received ok=${parsed.ok}`);
     if (!parsed.ok) return;
     const { mid, spawns, cfg } = parsed.value;
     const pids = spawns.map(([pid]) => pid);
@@ -148,24 +149,26 @@ export class MatchClient {
       gameMode,
     );
     this.deps.transport.send(makeReady(mid), "reliable");
-    console.log(`[mp][client] ready sent cars=${pids.length}`);
+    debugLog("mp:client", () => `ready sent cars=${pids.length}`);
   }
 
   private handleSnap(raw: NetworkMessage): void {
     if (this.arena === null) {
-      console.log("[mp][client] snap dropped: arena null (start not handled)");
+      debugLog("mp:client", "snap dropped: arena null (start not handled)");
       return;
     }
     const parsed = validateSnapPayload(raw);
     if (!parsed.ok) {
-      console.log(`[mp][client] snap invalid reason=${parsed.reason}`);
+      debugLog("mp:client", () => `snap invalid reason=${parsed.reason}`);
       return;
     }
     this.remote.push(fromSnapMessage(parsed.value));
     this.snapsReceived += 1;
     if (this.snapsReceived === 1 || this.snapsReceived % 60 === 0) {
-      console.log(
-        `[mp][client] snap n=${this.snapsReceived} tick=${parsed.value.tm} cars=${parsed.value.cars.length}`,
+      debugLog(
+        "mp:client",
+        () =>
+          `snap n=${this.snapsReceived} tick=${parsed.value.tm} cars=${parsed.value.cars.length}`,
       );
     }
   }
@@ -216,8 +219,10 @@ export class MatchClient {
     this.rendererUpdates += 1;
     this.publishHud(sample, dtSeconds);
     if (this.rendererUpdates === 1 || this.rendererUpdates % 60 === 0) {
-      console.log(
-        `[mp][client] renderer.update n=${this.rendererUpdates} cars=${sample.cars.length}`,
+      debugLog(
+        "mp:client",
+        () =>
+          `renderer.update n=${this.rendererUpdates} cars=${sample.cars.length}`,
       );
     }
   }

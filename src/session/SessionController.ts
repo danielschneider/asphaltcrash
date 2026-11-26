@@ -1,3 +1,4 @@
+import { debugLog } from "../config/debugLog";
 import { gameConfig } from "../config/gameConfig";
 import { CarAudio } from "../game/audio/CarAudio";
 import { Engine } from "../game/Engine";
@@ -342,7 +343,7 @@ export class SessionController {
       undefined,
       this.lobbyDeps.randomBytes,
     );
-    console.log("[mp][host] createRoom codeOk=" + (code !== null));
+    debugLog("mp:host", () => `createRoom codeOk=${code !== null}`);
     if (code === null) {
       lobbyStore.set({ status: "error", error: "Could not create room" });
       return;
@@ -448,8 +449,9 @@ export class SessionController {
       return;
     }
     const transport = this.lobbyTransport;
-    console.log(
-      `[mp][host] startMatch humans=${humans.length} bots=${bots.length}`,
+    debugLog(
+      "mp:host",
+      () => `startMatch humans=${humans.length} bots=${bots.length}`,
     );
     const seed = crypto.getRandomValues(new Uint32Array(1))[0] ?? 0;
     const carNames = buildCarNames(snapshot.players, bots.length);
@@ -487,15 +489,18 @@ export class SessionController {
     this.hudThrottle.reset();
     this.setState(SESSION_STATE.playingNetwork);
     this.matchHost.start();
-    console.log(
-      `[mp][host] matchHost.start returned phase=${this.matchHost.phase}`,
+    debugLog(
+      "mp:host",
+      () => `matchHost.start returned phase=${this.matchHost?.phase ?? "none"}`,
     );
     this.startFrameLoop();
   }
 
   attachMatchRenderer(host: HTMLElement): Promise<void> {
-    console.log(
-      `[mp][render] attachMatchRenderer state=${this.state} rendererExists=${this.matchRenderer !== null} hostClient=${this.matchClient !== null}`,
+    debugLog(
+      "mp:render",
+      () =>
+        `attachMatchRenderer state=${this.state} rendererExists=${this.matchRenderer !== null} hostClient=${this.matchClient !== null}`,
     );
     if (this.matchSurface === host && this.matchRendererReady !== null) {
       return this.matchRendererReady;
@@ -515,7 +520,7 @@ export class SessionController {
       return;
     }
     this.matchRenderer = renderer;
-    console.log("[mp][render] match renderer created");
+    debugLog("mp:render", "match renderer created");
     this.startPendingClient();
   }
 
@@ -566,7 +571,7 @@ export class SessionController {
           pending.names,
         ),
     });
-    console.log("[mp][client] MatchClient.start");
+    debugLog("mp:client", "MatchClient.start");
     this.matchClient.start(pending.start);
   }
 
@@ -596,7 +601,7 @@ export class SessionController {
     ) {
       return;
     }
-    console.log("[mp][match] finishNetworkMatch");
+    debugLog("mp:match", "finishNetworkMatch");
     this.deps.hud.push(
       buildEndHud(scores, localPid, gameMode, winnerPids, names),
     );
@@ -661,8 +666,10 @@ export class SessionController {
   private logMatchFrame(): void {
     this.matchFrames += 1;
     if (this.matchFrames !== 1 && this.matchFrames % 60 !== 0) return;
-    console.log(
-      `[mp][frame] n=${this.matchFrames} matchHost=${this.matchHost !== null} matchClient=${this.matchClient !== null} matchRenderer=${this.matchRenderer !== null} hostPhase=${this.matchHost?.phase ?? "none"}`,
+    debugLog(
+      "mp:frame",
+      () =>
+        `n=${this.matchFrames} matchHost=${this.matchHost !== null} matchClient=${this.matchClient !== null} matchRenderer=${this.matchRenderer !== null} hostPhase=${this.matchHost?.phase ?? "none"}`,
     );
   }
 
@@ -693,7 +700,7 @@ export class SessionController {
 
   joinRoom(code: string, name: string): void {
     this.assertIdle("join room");
-    console.log("[mp][client] joinRoom");
+    debugLog("mp:client", "joinRoom");
     if (!validateRoomCode(code)) {
       lobbyStore.set({ status: "error", error: "Invalid room code" });
       return;
@@ -815,8 +822,10 @@ export class SessionController {
   private beginClientMatch(msg: NetworkMessage, localPid: number): void {
     const parsed = parseStart(msg);
     const transport = this.lobbyTransport;
-    console.log(
-      `[mp][client] beginClientMatch parsed=${parsed.ok} transport=${transport !== null} surface=${this.matchSurface !== null}`,
+    debugLog(
+      "mp:client",
+      () =>
+        `beginClientMatch parsed=${parsed.ok} transport=${transport !== null} surface=${this.matchSurface !== null}`,
     );
     if (!parsed.ok || transport === null) return;
     this.clientStartSeen = true;

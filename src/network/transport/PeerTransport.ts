@@ -1,3 +1,4 @@
+import { debugLog } from "../../config/debugLog";
 import type {
   ChannelKind,
   PeerEvent,
@@ -324,26 +325,29 @@ export class PeerTransport implements Transport {
     if (message.t === "in" || message.t === "snap") {
       this.sendCounts[message.t] += 1;
       if (this.sendCounts[message.t] % 60 === 0) {
-        console.log(
-          `[mp][net] send ${message.t} n=${this.sendCounts[message.t]} open=${open}`,
+        debugLog(
+          "mp:net",
+          () =>
+            `send ${message.t} n=${this.sendCounts[message.t]} open=${open}`,
         );
       }
       return;
     }
-    console.log(`[mp][net] send t=${message.t} ch=${channel} open=${open}`);
+    debugLog("mp:net", () => `send t=${message.t} ch=${channel} open=${open}`);
   }
 
   private logRecv(message: NetworkMessage): void {
     if (message.t === "in" || message.t === "snap") {
       this.recvCounts[message.t] += 1;
       if (this.recvCounts[message.t] % 60 === 0) {
-        console.log(
-          `[mp][net] recv ${message.t} n=${this.recvCounts[message.t]}`,
+        debugLog(
+          "mp:net",
+          () => `recv ${message.t} n=${this.recvCounts[message.t]}`,
         );
       }
       return;
     }
-    console.log(`[mp][net] recv t=${message.t}`);
+    debugLog("mp:net", () => `recv t=${message.t}`);
   }
 
   private emitError(peerId: PeerId, value: unknown): void {

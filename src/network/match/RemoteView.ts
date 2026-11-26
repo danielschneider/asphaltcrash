@@ -1,3 +1,4 @@
+import { debugLog } from "../../config/debugLog";
 import { gameConfig } from "../../config/gameConfig";
 import type { MatchSnapshot } from "../../types/game";
 import { SnapshotBuffer } from "../sync/SnapshotBuffer";
@@ -78,12 +79,12 @@ export class RemoteView {
   private logNull(): void {
     if (this.loggedNull) return;
     this.loggedNull = true;
-    console.log(`[mp][view] sampleAt null bufferLen=${this.buffer.length}`);
+    debugLog("mp:view", () => `sampleAt null bufferLen=${this.buffer.length}`);
   }
 
   private logValue(cars: number): void {
     if (this.loggedValue) return;
     this.loggedValue = true;
-    console.log(`[mp][view] sampleAt first value cars=${cars}`);
+    debugLog("mp:view", () => `sampleAt first value cars=${cars}`);
   }
 }

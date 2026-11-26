@@ -1,19 +1,6 @@
 {
   "$schema": "https://unpkg.com/knip@6/schema.json",
   "project": ["src/**/*.{ts,tsx}", "tests/**/*.{ts,tsx}"],
-  "ignore": [
-    "src/config/env.ts",
-    "src/game/Entities.ts",
-    "src/game/shadow/Reconciler.ts",
-    "src/game/shadow/ShadowCar.ts",
-    "src/network/PeerManager.ts",
-    "src/network/room/Reconnect.ts",
-    "src/network/room/roomCode.ts",
-    "src/network/sync/ClockSync.ts",
-    "src/network/transport/PeerTransport.ts",
-    "src/session/ClientSession.ts",
-    "src/session/HostSession.ts"
-  ],
   "ignoreDependencies": ["dependency-cruiser"],
   "rules": { "exports": "off", "types": "off" }
 }
