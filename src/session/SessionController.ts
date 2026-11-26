@@ -1,10 +1,8 @@
 import { debugLog } from "../config/debugLog";
 import { gameConfig } from "../config/gameConfig";
 import { CarAudio } from "../game/audio/CarAudio";
-import { Engine } from "../game/Engine";
+import type { Engine } from "../game/Engine";
 import { InputBuffer } from "../game/input/InputBuffer";
-import { createInputBufferSource } from "../game/input/LocalInputSource";
-import type { InputSource } from "../game/input/InputSource";
 import { MatchSimulation } from "../game/sim/MatchSimulation";
 import type { WorldRenderer } from "../game/Renderer";
 import { PeerTransport } from "../network/transport/PeerTransport";
@@ -58,7 +56,6 @@ import {
   DEFAULT_CLOCK,
   DEFAULT_DEPS,
   DEFAULT_LOBBY_DEPS,
-  LOCAL_PLAYER_ID,
   resolveFrameScheduler,
   type FrameScheduler,
   type LobbyDeps,
@@ -66,12 +63,9 @@ import {
   type SessionDeps,
   type SoloMatchOptions,
 } from "./sessionDeps";
-import {
-  buildCarNames,
-  buildEndHud,
-  buildSoloSetup,
-  scoresFromSnapshot,
-} from "./sessionHud";
+import { buildCarNames, buildEndHud } from "./sessionHud";
+import { SESSION_STATE, type SessionState } from "./sessionState";
+import { SoloSession } from "./soloSession";
 
 interface ClientStart {
   readonly start: NetworkMessage;
@@ -83,19 +77,7 @@ interface ClientStart {
   readonly names: ReadonlyMap<number, string>;
 }
 
-export const SESSION_STATE = {
-  idle: "idle",
-  playingSolo: "playingSolo",
-  ended: "ended",
-  endedNetwork: "endedNetwork",
-  hostingLobby: "hostingLobby",
-  joining: "joining",
-  joinedLobby: "joinedLobby",
-  playingNetwork: "playingNetwork",
-  reconnecting: "reconnecting",
-} as const;
-
-export type SessionState = (typeof SESSION_STATE)[keyof typeof SESSION_STATE];
+export { SESSION_STATE, type SessionState } from "./sessionState";
 
 export type {
   FrameScheduler,
@@ -125,10 +107,8 @@ export class SessionController {
   private readonly lobbyDeps: LobbyDeps;
   private readonly clock: SessionClock;
   private readonly frames: FrameScheduler;
-  private engine: Engine | null = null;
-  private renderer: WorldRenderer | null = null;
   private readonly audio: CarAudio;
-  private unsubscribeHud: (() => void) | null = null;
+  private readonly solo: SoloSession;
   private startToken = 0;
   private lobbyTransport: PeerTransport | null = null;
   private lobbyIsHost = false;
@@ -150,8 +130,6 @@ export class SessionController {
   private hostRenderMs: number | null = null;
   private readonly hudThrottle = new HudThrottle(gameConfig.hudHz);
   private matchFrames = 0;
-  private soloGameMode: GameMode = "crashfest";
-  private soloNames: ReadonlyMap<number, string> = new Map();
 
   constructor(deps: SessionDeps = DEFAULT_DEPS) {
     this.deps = deps;
@@ -159,6 +137,14 @@ export class SessionController {
     this.clock = { ...DEFAULT_CLOCK, ...deps.clock };
     this.frames = resolveFrameScheduler(deps);
     this.audio = deps.createAudio ? deps.createAudio() : new CarAudio();
+    this.solo = new SoloSession({
+      createRenderer: deps.createRenderer,
+      hud: deps.hud,
+      audio: this.audio,
+      inputBuffer: this.inputBuffer,
+      frames: this.frames,
+      onFinished: (snapshot, winnerPids) => this.endMatch(snapshot, winnerPids),
+    });
   }
 
   // Must run synchronously inside a user gesture (Play tap) so iOS Safari allows playback.
@@ -182,7 +168,7 @@ export class SessionController {
   }
 
   getEngine(): Engine | null {
-    return this.engine;
+    return this.solo.getEngine();
   }
 
   async startSolo(options: SoloMatchOptions, host: HTMLElement): Promise<void> {
@@ -192,64 +178,29 @@ export class SessionController {
       );
     }
     const token = ++this.startToken;
-    const sim = new MatchSimulation(buildSoloSetup(options));
-    this.soloGameMode = options.gameMode;
-    this.soloNames = buildCarNames(
-      [{ pid: LOCAL_PLAYER_ID, name: "Player" }],
-      options.botCount,
+    const started = await this.solo.start(
+      options,
+      host,
+      () => token === this.startToken && this.state === SESSION_STATE.idle,
     );
-    const renderer = await this.deps.createRenderer(host, sim.arena);
-    if (token !== this.startToken || this.state !== SESSION_STATE.idle) {
-      renderer.destroy();
-      return;
-    }
-    this.renderer = renderer;
-    const inputSources: readonly InputSource[] = [
-      createInputBufferSource(LOCAL_PLAYER_ID, this.inputBuffer),
-    ];
-    this.engine = new Engine({
-      sim,
-      renderer,
-      inputSources,
-      localPlayerId: LOCAL_PLAYER_ID,
-      carNames: this.soloNames,
-      hud: this.deps.hud,
-      audio: this.audio,
-      onFinished: (snapshot, winnerPids) => this.endMatch(snapshot, winnerPids),
-      requestFrame: this.frames.request,
-      cancelFrame: this.frames.cancel,
-    });
-    this.watchForMatchEnd();
+    if (!started) return;
     this.setState(SESSION_STATE.playingSolo);
-    this.engine.start();
+    this.solo.begin();
   }
 
   endMatch(snapshot?: MatchSnapshot, winnerPids: readonly number[] = []): void {
     if (this.state !== SESSION_STATE.playingSolo || this.resultTimer !== null) {
       return;
     }
-    this.engine?.stop();
-    this.audio.dispose();
-    this.detachHud();
-    if (snapshot !== undefined) {
-      this.deps.hud.push(
-        buildEndHud(
-          scoresFromSnapshot(snapshot.cars, this.soloGameMode),
-          LOCAL_PLAYER_ID,
-          this.soloGameMode,
-          winnerPids,
-          this.soloNames,
-        ),
-      );
-    }
-    this.scheduleResultTransition(this.soloGameMode, winnerPids, () => {
+    const gameMode = this.solo.finish(snapshot, winnerPids);
+    this.scheduleResultTransition(gameMode, winnerPids, () => {
       if (this.state !== SESSION_STATE.playingSolo) return;
       this.setState(SESSION_STATE.ended);
     });
   }
 
   setPaused(on: boolean): void {
-    this.engine?.setPaused(on);
+    this.solo.setPaused(on);
   }
 
   createRoom(name: string): void {
@@ -677,12 +628,8 @@ export class SessionController {
       this.resultTimer = null;
     }
     this.resetMatchState();
-    this.detachHud();
-    this.engine?.dispose();
-    this.engine = null;
+    this.solo.dispose();
     this.audio.dispose();
-    this.renderer?.destroy();
-    this.renderer = null;
     if (this.lobbyTransport !== null) {
       this.teardownLobby();
       lobbyStore.reset();
@@ -800,21 +747,6 @@ export class SessionController {
         `SessionController: cannot ${action} from state ${this.state}`,
       );
     }
-  }
-
-  private watchForMatchEnd(): void {
-    this.detachHud();
-    this.unsubscribeHud = this.deps.hud.subscribe(() => {
-      const snapshot = this.deps.hud.getSnapshot();
-      if (snapshot.gameMode === "crashfest") return;
-      if (snapshot.remainingMs > 0) return;
-      this.endMatch();
-    });
-  }
-
-  private detachHud(): void {
-    this.unsubscribeHud?.();
-    this.unsubscribeHud = null;
   }
 
   private setState(next: SessionState): void {
