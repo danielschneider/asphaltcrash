@@ -1,66 +1,27 @@
-import { gameConfig } from "../../config/gameConfig";
-import { spawnFor } from "../../config/spawnPoints";
-import {
-  type ArenaView,
-  type BaseView,
-  type BillSnapshot,
-  type CarSnapshot,
-  type GameMode,
-  type MatchSetup,
-  type MatchSnapshot,
-  type SimEvent,
-  type SimEvents,
+import type {
+  ArenaView,
+  CarSnapshot,
+  GameMode,
+  MatchSetup,
+  MatchSnapshot,
+  SimEvent,
+  SimEvents,
 } from "../../types/game";
-import { buildArenaView } from "../arena";
-import { BotController, type BotPerception } from "../bots/BotController";
 import { NEUTRAL_INPUT, type InputFrame } from "../input/InputFrame";
+import type { PhysicsContact } from "../Physics";
+import { carFlags, recordHit } from "./CarState";
+import { deliver, pickUp, spawnNewBill } from "./billFlow";
+import { resolveDamage } from "./damageResolver";
 import {
-  PhysicsWorld,
-  type CarBodyState,
-  type PhysicsContact,
-} from "../Physics";
-import {
-  applyDamage,
-  attributeKill,
-  canDeliver,
-  canPickUp,
-  humanDamageTakenMultiplier,
-  isContactOnCooldown,
-  nextSpawnTick,
-  ticksFromMs,
-  wallDamageMultiplier,
-  type DamageConfig,
-} from "../Rules";
-import { BillSpawner, type BaseRect } from "./BillSpawner";
-import {
-  carFlags,
-  createCarState,
-  isInvulnerable,
-  recordHit,
-  type CarState,
-} from "./CarState";
-import { createRng } from "./Rng";
-import {
-  scoreDelivery,
-  scoreKill,
-  timerEventsCrossed,
-  timerRemainingMs,
-} from "./Scoring";
+  buildPerceptionFrame,
+  perceptionFor,
+  type PerceptionSource,
+} from "./botPerception";
+import { BOOST_COOLDOWN_TICKS, BOOST_TICKS } from "./matchConstants";
+import { resolveDestruction, resolveRespawns } from "./respawn";
+import { bodyOf, carOf, createSimState, type SimState } from "./simState";
+import { timerEventsCrossed, timerRemainingMs } from "./Scoring";
 import { secondsToMs } from "./time";
-
-const MAX_PID = gameConfig.maxCars - 1;
-const BOOST_TICKS = ticksFromMs(secondsToMs(gameConfig.boostSeconds));
-const BOOST_COOLDOWN_TICKS = ticksFromMs(
-  secondsToMs(gameConfig.boostCooldownSeconds),
-);
-const INVULNERABLE_TICKS = ticksFromMs(
-  secondsToMs(gameConfig.invulnerableAfterRespawnSeconds),
-);
-const DAMAGE_CONFIG: DamageConfig = {
-  damageThresholdImpulse: gameConfig.damageThresholdImpulse,
-  damageFactor: gameConfig.damageFactor,
-  maxDamagePerHit: gameConfig.maxDamagePerHit,
-};
 
 export interface MatchTestHook {
   readonly placeCar: (pid: number, x: number, y: number, angle: number) => void;
@@ -80,101 +41,23 @@ export function getMatchTestHook(
   return testHooks.get(sim);
 }
 
-function validatePids(setup: MatchSetup): void {
-  const seen = new Set<number>();
-  for (const pid of [...setup.humanPlayerIds, ...setup.botPlayerIds]) {
-    if (!Number.isInteger(pid) || pid < 0 || pid > MAX_PID || seen.has(pid)) {
-      throw new Error(`MatchSimulation: invalid or duplicate player id ${pid}`);
-    }
-    seen.add(pid);
-  }
-}
-
-function toSpawnRect(base: BaseView): BaseRect {
-  return {
-    x: base.x - base.width / 2,
-    y: base.y - base.height / 2,
-    width: base.width,
-    height: base.height,
-  };
-}
-
-function isInsideBase(body: CarBodyState, base: BaseView): boolean {
-  return (
-    Math.abs(body.x - base.x) <= base.width / 2 &&
-    Math.abs(body.y - base.y) <= base.height / 2
-  );
-}
-
-function pairKey(a: number, b: number): string {
-  return `${Math.min(a, b)}:${Math.max(a, b)}`;
-}
-
-function byBillId(a: BillSnapshot, b: BillSnapshot): number {
-  return a.id - b.id;
-}
-
 export class MatchSimulation {
-  private readonly setup: MatchSetup;
-  private readonly arenaView: ArenaView;
-  private readonly physics: PhysicsWorld;
-  private readonly spawner: BillSpawner;
-  private readonly pids: readonly number[];
-  private readonly cars = new Map<number, CarState>();
-  private readonly bots = new Map<number, BotController>();
-  private readonly bills = new Map<number, BillSnapshot>();
-  private readonly scores = new Map<number, number>();
-  private readonly inputs = new Map<number, InputFrame>();
-  private readonly contactTicks = new Map<string, number>();
-  private currentTick = 0;
-  private nextBillIdValue = 1;
-  private lastSpawnTick = 0;
+  private readonly state: SimState;
   private finished = false;
   private winners: readonly number[] = [];
 
   constructor(setup: MatchSetup) {
-    validatePids(setup);
-    if (
-      setup.gameMode === "crashfest" &&
-      setup.humanPlayerIds.length + setup.botPlayerIds.length < 2
-    ) {
-      throw new Error("MatchSimulation: crashfest requires at least two cars");
-    }
-    this.setup = setup;
-    this.arenaView = buildArenaView(
-      setup.humanPlayerIds,
-      setup.botPlayerIds,
-      setup.gameMode,
-    );
-    this.pids = [...setup.humanPlayerIds, ...setup.botPlayerIds].sort(
-      (a, b) => a - b,
-    );
-    this.physics = new PhysicsWorld(this.arenaView, this.arenaView.bases);
-    this.spawner = new BillSpawner(
-      createRng(setup.seed),
-      this.arenaView,
-      this.arenaView.bases.map(toSpawnRect),
-    );
-    for (const pid of this.pids) {
-      const spawn = spawnFor(pid, setup.gameMode);
-      this.cars.set(pid, createCarState(pid, gameConfig.maxHealth));
-      this.scores.set(pid, 0);
-      this.physics.addCar(pid, spawn.x, spawn.y, spawn.angle);
-    }
-    for (const pid of setup.botPlayerIds) {
-      const rng = createRng(setup.seed + (pid + 1) * gameConfig.botSeedStride);
-      this.bots.set(pid, new BotController(pid, setup.botDifficulty, rng));
-    }
+    this.state = createSimState(setup);
     testHooks.set(this, {
       placeCar: (pid, x, y, angle) => this.placeCarInternal(pid, x, y, angle),
       setHealth: (pid, health, attackerPid) => {
-        const car = this.carOf(pid);
+        const car = carOf(this.state, pid);
         car.hp = health;
         if (attackerPid !== undefined) {
           recordHit(
             car,
-            { attackerPid, tick: this.currentTick, impulse: 1 },
-            this.currentTick,
+            { attackerPid, tick: this.state.currentTick, impulse: 1 },
+            this.state.currentTick,
           );
         }
       },
@@ -182,15 +65,15 @@ export class MatchSimulation {
   }
 
   get tick(): number {
-    return this.currentTick;
+    return this.state.currentTick;
   }
 
   get arena(): ArenaView {
-    return this.arenaView;
+    return this.state.arena;
   }
 
   get gameMode(): GameMode {
-    return this.setup.gameMode;
+    return this.state.setup.gameMode;
   }
 
   get isFinished(): boolean {
@@ -202,140 +85,83 @@ export class MatchSimulation {
   }
 
   setInput(playerId: number, input: InputFrame): void {
-    if (!this.setup.humanPlayerIds.includes(playerId)) return;
-    this.inputs.set(playerId, input);
+    if (!this.state.humanIds.has(playerId)) return;
+    this.state.inputs.set(playerId, input);
   }
 
   inputFor(playerId: number): InputFrame {
-    return this.inputs.get(playerId) ?? NEUTRAL_INPUT;
+    return this.state.inputs.get(playerId) ?? NEUTRAL_INPUT;
   }
 
   step(): SimEvents {
     if (this.finished) return [];
-    const tick = this.currentTick;
+    const tick = this.state.currentTick;
     const events: SimEvent[] = [];
     this.decideBots();
     this.applyControls();
-    const contacts = this.physics.step();
-    this.resolveDamage(contacts, tick, events);
-    this.resolveDestruction(tick, events);
-    this.resolveRespawns(tick, events);
+    const contacts = this.state.physics.step();
+    resolveDamage(this.state, contacts, tick, events);
+    resolveDestruction(this.state, tick, events);
+    resolveRespawns(this.state, tick, events);
     this.resolveCarContacts(contacts, events);
     this.resolveCrashfestEnd();
-    this.spawnNewBill(tick, events);
-    this.emitTimer(tick, events);
-    this.currentTick += 1;
+    if (this.state.setup.gameMode === "cash") {
+      spawnNewBill(this.state, tick, events);
+      this.emitTimer(tick, events);
+    }
+    this.state.currentTick += 1;
     return events;
   }
 
   snapshot(): MatchSnapshot {
+    const { state } = this;
     return {
-      tick: this.currentTick,
+      tick: state.currentTick,
       timeRemainingMs:
-        this.setup.gameMode === "crashfest"
+        state.setup.gameMode === "crashfest"
           ? 0
-          : timerRemainingMs(this.currentTick, this.setup.matchSeconds),
-      cars: this.pids.map((pid) => this.carSnapshot(pid)),
-      bills: this.sortedBills().map((bill) => ({ ...bill })),
+          : timerRemainingMs(state.currentTick, state.setup.matchSeconds),
+      cars: state.pids.map((pid) => this.carSnapshot(pid)),
+      bills: [...state.bills.values()].map((bill) => ({ ...bill })),
     };
   }
 
-  private carOf(pid: number): CarState {
-    const car = this.cars.get(pid);
-    if (car === undefined) {
-      throw new Error(`MatchSimulation: unknown car ${pid}`);
-    }
-    return car;
-  }
-
-  private bodyOf(pid: number): CarBodyState {
-    const body = this.physics.getCar(pid);
-    if (body === null) {
-      throw new Error(`MatchSimulation: missing physics body ${pid}`);
-    }
-    return body;
-  }
-
-  private baseOf(pid: number): BaseView | undefined {
-    return this.arenaView.bases.find((base) => base.pid === pid);
-  }
-
-  private sortedBills(): BillSnapshot[] {
-    return [...this.bills.values()].sort(byBillId);
-  }
-
-  private allocBillId(): number {
-    const id = this.nextBillIdValue;
-    this.nextBillIdValue += 1;
-    return id;
-  }
-
-  private registerBill(bill: BillSnapshot, events: SimEvent[]): void {
-    this.physics.addBill(bill.id, bill.x, bill.y);
-    this.bills.set(bill.id, bill);
-    events.push({
-      k: "billNew",
-      id: bill.id,
-      x: bill.x,
-      y: bill.y,
-      value: bill.value,
-    });
-  }
-
   private decideBots(): void {
-    for (const [pid, bot] of this.bots) {
-      const car = this.carOf(pid);
-      if (car.destroyed) {
-        this.inputs.set(pid, NEUTRAL_INPUT);
+    const { state } = this;
+    if (state.bots.size === 0) return;
+    const source = this.perceptionSource();
+    const frame = buildPerceptionFrame(source, state.physics.carStates(), [
+      ...state.bills.values(),
+    ]);
+    for (const [pid, bot] of state.bots) {
+      if (carOf(state, pid).destroyed) {
+        state.inputs.set(pid, NEUTRAL_INPUT);
         continue;
       }
-      this.inputs.set(pid, bot.decide(this.perceptionFor(pid)));
+      state.inputs.set(pid, bot.decide(perceptionFor(source, frame, pid)));
     }
   }
 
-  private perceptionFor(pid: number): BotPerception {
-    const body = this.bodyOf(pid);
-    const car = this.carOf(pid);
-    const base = this.baseOf(pid);
-    const enemies = this.pids
-      .filter((other) => other !== pid && !this.carOf(other).destroyed)
-      .map((other) => ({
-        pid: other,
-        x: this.bodyOf(other).x,
-        y: this.bodyOf(other).y,
-        vx: this.bodyOf(other).vx,
-        vy: this.bodyOf(other).vy,
-        hp: this.carOf(other).hp,
-      }));
+  private perceptionSource(): PerceptionSource {
+    const { state } = this;
     return {
-      self: {
-        pid,
-        x: body.x,
-        y: body.y,
-        angle: body.angle,
-        speed: body.speed,
-        hp: car.hp,
-        cargo: car.carried.length,
-        baseX: base?.x ?? body.x,
-        baseY: base?.y ?? body.y,
-      },
-      gameMode: this.setup.gameMode,
-      bills: this.sortedBills(),
-      enemies,
-      tick: this.currentTick,
-      fallback: {
-        x: this.arenaView.width / 2,
-        y: this.arenaView.height / 2,
-      },
+      gameMode: state.setup.gameMode,
+      tick: state.currentTick,
+      arenaWidth: state.arena.width,
+      arenaHeight: state.arena.height,
+      pids: state.pids,
+      cars: state.cars,
+      basesByPid: state.basesByPid,
     };
   }
 
   private applyControls(): void {
-    for (const pid of this.pids) {
-      const car = this.carOf(pid);
+    const { state } = this;
+    for (const pid of state.pids) {
+      const car = carOf(state, pid);
       const input = car.destroyed
         ? NEUTRAL_INPUT
-        : (this.inputs.get(pid) ?? NEUTRAL_INPUT);
+        : (state.inputs.get(pid) ?? NEUTRAL_INPUT);
       const boostReady =
         !car.destroyed && input.action && car.boostCooldownTicks === 0;
       if (boostReady) {
@@ -343,7 +169,7 @@ export class MatchSimulation {
         car.boostCooldownTicks = BOOST_COOLDOWN_TICKS;
       }
       const boosting = !car.destroyed && car.boostTicksLeft > 0;
-      car.throttle = this.physics.applyControl(
+      car.throttle = state.physics.applyControl(
         pid,
         { aimX: input.aimX, aimY: input.aimY, boost: boosting },
         boosting,
@@ -354,215 +180,23 @@ export class MatchSimulation {
     }
   }
 
-  private resolveDamage(
-    contacts: readonly PhysicsContact[],
-    tick: number,
-    events: SimEvent[],
-  ): void {
-    for (const contact of contacts) {
-      if (contact.kind === "car-wall") {
-        this.damageFromWall(
-          contact.aPid,
-          contact.impulse,
-          contact.frontImpact ?? 0,
-          tick,
-        );
-        continue;
-      }
-      if (
-        contact.kind === "car-car" &&
-        contact.bPid !== null &&
-        contact.rammerPid !== null
-      ) {
-        this.damageFromCarCar(
-          contact.aPid,
-          contact.bPid,
-          contact.impulse,
-          contact.rammerPid,
-          tick,
-          events,
-        );
-      }
-    }
-  }
-
-  private damageFromWall(
-    pid: number,
-    impulse: number,
-    frontImpact: number,
-    tick: number,
-  ): void {
-    const key = `${pid}:wall`;
-    if (isContactOnCooldown(this.contactTicks.get(key), tick)) return;
-    const damage =
-      applyDamage(impulse, DAMAGE_CONFIG) * wallDamageMultiplier(frontImpact);
-    if (damage <= 0) return;
-    this.contactTicks.set(key, tick);
-    this.applyHit(pid, null, damage, impulse, tick);
-  }
-
-  private damageFromCarCar(
-    aPid: number,
-    bPid: number,
-    impulse: number,
-    rammerPid: number,
-    tick: number,
-    events: SimEvent[],
-  ): void {
-    if (this.carOf(aPid).destroyed || this.carOf(bPid).destroyed) return;
-    const key = pairKey(aPid, bPid);
-    if (isContactOnCooldown(this.contactTicks.get(key), tick)) return;
-    const damage = applyDamage(impulse, DAMAGE_CONFIG);
-    if (damage <= 0) return;
-    this.contactTicks.set(key, tick);
-    const attackerPid = rammerPid;
-    const victimPid = attackerPid === aPid ? bPid : aPid;
-    if (impulse >= gameConfig.hitEventThreshold) {
-      events.push({ k: "hit", attackerPid, victimPid, impulse });
-    }
-    this.applyHit(victimPid, attackerPid, damage, impulse, tick);
-    this.applyHit(
-      attackerPid,
-      victimPid,
-      damage * gameConfig.rammerDamageShare,
-      impulse,
-      tick,
-    );
-  }
-
-  private applyHit(
-    victimPid: number,
-    attackerPid: number | null,
-    damage: number,
-    impulse: number,
-    tick: number,
-  ): void {
-    const car = this.carOf(victimPid);
-    if (car.destroyed || isInvulnerable(car, tick)) return;
-    const isHuman = this.setup.humanPlayerIds.includes(victimPid);
-    const scaled =
-      damage * humanDamageTakenMultiplier(this.setup.botDifficulty, isHuman);
-    car.hp = Math.max(0, car.hp - scaled);
-    if (attackerPid !== null) {
-      recordHit(car, { attackerPid, tick, impulse }, tick);
-    }
-  }
-
-  private resolveDestruction(tick: number, events: SimEvent[]): void {
-    for (const pid of this.pids) {
-      const car = this.carOf(pid);
-      if (car.destroyed || car.hp > 0) continue;
-      this.destroyCar(car, tick, events);
-    }
-  }
-
-  private destroyCar(car: CarState, tick: number, events: SimEvent[]): void {
-    const { pid } = car;
-    car.destroyed = true;
-    car.respawnTick =
-      this.setup.gameMode === "crashfest" ? 0 : nextSpawnTick(tick);
-    car.boostTicksLeft = 0;
-    car.boosting = false;
-    car.throttle = 0;
-    this.physics.setCarWrecked(pid, true);
-
-    const { x, y } = this.bodyOf(pid);
-    const dropped = [...car.carried];
-    car.carried = [];
-    if (dropped.length > 0) {
-      events.push({ k: "drop", pid, count: dropped.length });
-      for (const value of dropped) {
-        this.registerBill({ id: this.allocBillId(), x, y, value }, events);
-      }
-    }
-
-    const attackerPid = attributeKill(car.hits, pid, tick);
-    car.hits = [];
-    if (attackerPid === null) return;
-    scoreKill(
-      this.scores,
-      attackerPid,
-      this.setup.gameMode === "crashfest" ? 1 : undefined,
-    );
-    events.push({ k: "kill", attackerPid, victimPid: pid });
-  }
-
-  private resolveRespawns(tick: number, events: SimEvent[]): void {
-    if (this.setup.gameMode === "crashfest") return;
-    for (const pid of this.pids) {
-      const car = this.carOf(pid);
-      if (!car.destroyed || tick < car.respawnTick) continue;
-      const spawn = spawnFor(pid, this.setup.gameMode);
-      this.physics.teleportCar(pid, spawn.x, spawn.y, spawn.angle);
-      this.physics.setCarWrecked(pid, false);
-      car.destroyed = false;
-      car.hp = gameConfig.maxHealth;
-      car.carried = [];
-      car.invulnerableUntilTick = tick + INVULNERABLE_TICKS;
-      events.push({
-        k: "respawn",
-        pid,
-        x: spawn.x,
-        y: spawn.y,
-        angle: spawn.angle,
-      });
-    }
-  }
-
   private resolveCarContacts(
     contacts: readonly PhysicsContact[],
     events: SimEvent[],
   ): void {
     for (const contact of contacts) {
       if (contact.kind === "car-bill" && contact.billId !== null) {
-        this.pickUp(contact.aPid, contact.billId, events);
+        pickUp(this.state, contact.aPid, contact.billId, events);
         continue;
       }
       if (contact.kind === "car-base") {
-        this.deliver(contact.aPid, events);
+        deliver(this.state, contact.aPid, events);
       }
     }
   }
 
-  private pickUp(pid: number, billId: number, events: SimEvent[]): void {
-    const car = this.carOf(pid);
-    const bill = this.bills.get(billId);
-    if (car.destroyed || bill === undefined || !canPickUp(car.carried.length))
-      return;
-    this.physics.removeBill(billId);
-    this.bills.delete(billId);
-    car.carried.push(bill.value);
-    events.push({ k: "pick", pid, billId, value: bill.value });
-  }
-
-  private deliver(pid: number, events: SimEvent[]): void {
-    const car = this.carOf(pid);
-    const base = this.baseOf(pid);
-    if (car.destroyed || base === undefined) return;
-    if (!isInsideBase(this.bodyOf(pid), base)) return;
-    if (!canDeliver(pid, car.carried.length, pid)) return;
-    const amount = car.carried.reduce((sum, value) => sum + value, 0);
-    scoreDelivery(this.scores, pid, amount);
-    car.carried = [];
-    events.push({ k: "deliv", pid, amount });
-  }
-
-  private spawnNewBill(tick: number, events: SimEvent[]): void {
-    if (this.setup.gameMode === "crashfest") return;
-    const spawned = this.spawner.maybeSpawn(
-      tick,
-      this.bills.size,
-      this.lastSpawnTick,
-      () => this.allocBillId(),
-    );
-    if (spawned === null) return;
-    this.lastSpawnTick = tick;
-    this.registerBill(spawned, events);
-  }
-
   private emitTimer(tick: number, events: SimEvent[]): void {
-    if (this.setup.gameMode === "crashfest") return;
-    const { matchSeconds } = this.setup;
+    const { matchSeconds } = this.state.setup;
     const prev = timerRemainingMs(tick, matchSeconds);
     const now = timerRemainingMs(tick + 1, matchSeconds);
     for (const seconds of timerEventsCrossed(prev, now)) {
@@ -571,16 +205,18 @@ export class MatchSimulation {
   }
 
   private resolveCrashfestEnd(): void {
-    if (this.setup.gameMode !== "crashfest") return;
-    const survivors = this.pids.filter((pid) => !this.carOf(pid).destroyed);
+    const { state } = this;
+    if (state.setup.gameMode !== "crashfest") return;
+    const survivors = state.pids.filter((pid) => !carOf(state, pid).destroyed);
     if (survivors.length > 1) return;
     this.finished = true;
     this.winners = survivors;
   }
 
   private carSnapshot(pid: number): CarSnapshot {
-    const body = this.bodyOf(pid);
-    const car = this.carOf(pid);
+    const { state } = this;
+    const body = bodyOf(state, pid);
+    const car = carOf(state, pid);
     return {
       pid,
       x: body.x,
@@ -589,9 +225,9 @@ export class MatchSimulation {
       vx: body.vx,
       vy: body.vy,
       hp: car.hp,
-      flags: carFlags(car, this.setup.gameMode),
+      flags: carFlags(car, state.setup.gameMode),
       cargo: car.carried.length,
-      score: this.scores.get(pid) ?? 0,
+      score: state.scores.get(pid) ?? 0,
     };
   }
 
@@ -601,7 +237,7 @@ export class MatchSimulation {
     y: number,
     angle: number,
   ): void {
-    this.carOf(pid);
-    this.physics.teleportCar(pid, x, y, angle);
+    carOf(this.state, pid);
+    this.state.physics.teleportCar(pid, x, y, angle);
   }
 }
