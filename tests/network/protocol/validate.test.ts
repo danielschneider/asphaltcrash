@@ -9,6 +9,7 @@ import {
   validateMessage,
   validateSnapPayload,
 } from "../../../src/network/protocol/validate";
+import { MAX_SNAP_BILLS } from "../../../src/network/protocol/validate/snap";
 
 const VALID_TOKEN = "abcdefghij123456";
 
@@ -80,10 +81,23 @@ describe("validateSnapPayload", () => {
     ).toEqual({ ok: false, reason: "pid-range" });
   });
 
-  it("rejects more bills than maxBillsOnField (12)", () => {
+  it("accepts 13 bills, above maxBillsOnField, when cargo is in flight", () => {
     const bill = [1, 0, 0, 10];
-    const result = validateSnapPayload(snap({ bills: Array(13).fill(bill) }));
-    expect(result).toEqual({ ok: false, reason: "field:bills" });
+    expect(validateSnapPayload(snap({ bills: Array(13).fill(bill) })).ok).toBe(
+      true,
+    );
+  });
+
+  it("accepts exactly MAX_SNAP_BILLS bills and rejects one more", () => {
+    const bill = [1, 0, 0, 10];
+    expect(
+      validateSnapPayload(snap({ bills: Array(MAX_SNAP_BILLS).fill(bill) })).ok,
+    ).toBe(true);
+    expect(
+      validateSnapPayload(
+        snap({ bills: Array(MAX_SNAP_BILLS + 1).fill(bill) }),
+      ),
+    ).toEqual({ ok: false, reason: "field:bills" });
   });
 
   it("rejects a car with hp above 100", () => {
@@ -212,5 +226,30 @@ describe("validateMessage", () => {
 
   it("dispatches a valid input message", () => {
     expect(validateMessage(input()).ok).toBe(true);
+  });
+
+  it("decodes ping and pong instead of reporting not-implemented", () => {
+    expect(validateMessage({ v: 1, t: "ping", c: 1000 })).toEqual({
+      ok: true,
+      value: { v: 1, t: "ping", c: 1000 },
+    });
+    expect(validateMessage({ v: 1, t: "pong", c: 1000, h: 5000 })).toEqual({
+      ok: true,
+      value: { v: 1, t: "pong", c: 1000, h: 5000 },
+    });
+  });
+
+  it.each([
+    { v: 1, t: "ping" },
+    { v: 1, t: "ping", c: "1000" },
+    { v: 1, t: "ping", c: Number.NaN },
+    { v: 1, t: "ping", c: Number.POSITIVE_INFINITY, h: 1 },
+    { v: 2, t: "ping", c: 1000 },
+    { v: 1, t: "pong", c: 1000 },
+    { v: 1, t: "pong", c: 1000, h: null },
+    { v: 1, t: "pong", c: 1000, h: Number.NaN },
+    { v: 2, t: "pong", c: 1, h: 1 },
+  ])("rejects malformed ping/pong %j", (raw) => {
+    expect(validateMessage(raw).ok).toBe(false);
   });
 });

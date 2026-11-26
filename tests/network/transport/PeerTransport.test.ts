@@ -159,6 +159,20 @@ describe("PeerTransport", () => {
     expect(host.invalid.count(clientId)).toBe(1);
   });
 
+  it("accepts three pings within 5 s without counting them as invalid", async () => {
+    const { host, client, clientId } = connectPair();
+    const hostInbox: unknown[] = [];
+    host.onMessage((msg) => hostInbox.push(msg));
+    await flush();
+
+    for (let i = 0; i < 3; i += 1) {
+      client.send({ v: 1, t: "ping", c: 1000 + i }, "reliable");
+    }
+
+    expect(hostInbox).toHaveLength(3);
+    expect(host.invalid.count(clientId)).toBe(0);
+  });
+
   it("emits open on both sides once the reliable channel is open", async () => {
     const { host, client, clientId } = connectPair();
     const hostEvents: PeerEvent[] = [];

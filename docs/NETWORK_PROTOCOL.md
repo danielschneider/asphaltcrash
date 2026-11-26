@@ -98,7 +98,7 @@ Field names are short to reduce bytes. Documented mapping is normative.
 #### 4.2.2 `snap.bills` item
 `[id, x, y, v]` where `id` is int, `x,y` rounded to 1 px, `v` is value (10, 20 or 50). Only bills that are on the field, not carried, are sent. Carried bills are represented by `cargo` count.
 
-Bills are sent in full every snapshot in v1 (max 12 items). Delta is not needed at this size.
+Bills are sent in full every snapshot in v1. Receiver limit: `MAX_SNAP_BILLS` = `maxBillsOnField` + `maxCars` × `cargoCapacity` (12 + 16 × 5 = 92). Cargo dropped by destroyed cars becomes field bills without the `maxBillsOnField` cap, so the field count can exceed 12 transiently. The sender-side cap stays at 12 for bill spawning. Delta is not needed at this size.
 
 #### 4.2.3 Size estimate
 - Car item: about 40 bytes JSON.
@@ -159,7 +159,8 @@ The multiplayer HUD shows a four-bar signal in the top-right of the match.
 | `in` | `s` int ≥ 0 and greater than last accepted seq (older ones dropped). `ax`, `ay` int in −100..100 (out-of-range message dropped). `a` 0 or 1. |
 | `ready` | `mid` equals current match id. |
 | `resume` | `token` must match stored token for slot; window not expired. |
-| `ping` | `c` finite number. |
+| `ping` | `v` = 1, `c` finite number. |
+| `pong` | `v` = 1, `c` and `h` finite numbers. Host replies to each valid `ping`. |
 
 Any violation: drop the message and increment `invalid` counter for that peer. Three invalid messages within 5 s → disconnect with `reject{reason:'invalid'}` and `bye`.
 
