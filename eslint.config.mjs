@@ -212,6 +212,15 @@ export default defineConfig(
     },
   },
   {
+    files: ["src/**/*.{ts,tsx}"],
+    rules: {
+      "max-lines": [
+        "error",
+        { max: 300, skipBlankLines: true, skipComments: true },
+      ],
+    },
+  },
+  {
     files: COMPLEXITY_STRICT_FILES,
     rules: {
       "sonarjs/cognitive-complexity": ["error", 15],

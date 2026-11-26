@@ -3,46 +3,13 @@ import { gameConfig } from "../config/gameConfig";
 import { CarAudio } from "../game/audio/CarAudio";
 import type { Engine } from "../game/Engine";
 import { InputBuffer } from "../game/input/InputBuffer";
-import { PeerTransport } from "../network/transport/PeerTransport";
-import type { Unsubscribe } from "../network/transport/Transport";
-import {
-  attachHandshakeClient,
-  sendHello,
-  type HandshakeClient,
-  type HandshakeOutcome,
-} from "../network/session/HandshakeClient";
-import { RosterHandshakeHost } from "../network/session/RosterHandshakeHost";
-import {
-  generateUniqueRoomCode,
-  hostPeerIdFor,
-  validateRoomCode,
-  type RandomBytes,
-} from "../network/room/roomCode";
-import { clampBotCount, totalCarCount } from "./lobbyRoster";
-import {
-  HOST_PID,
-  NetworkMatchRunner,
-  type ClientStart,
-} from "./networkMatchRunner";
-import { arenaFromStart } from "./startArena";
-import { parseStart } from "../network/match/startMessage";
-import {
-  PROTOCOL_VERSION,
-  type LobbyMessage,
-  type LobbyPlayer as LobbyPlayerItem,
-  type NetworkMessage,
-  type ScoreItem,
-} from "../network/protocol/messages";
-import { validateLobbyEnvelope } from "../network/protocol/validate";
-import { generatePlayerName, generateUniquePlayerName } from "./playerNames";
-import {
-  lobbyStore,
-  type LobbyPlayer,
-  peerErrorToMessage,
-  reasonToMessage,
-} from "../store/lobbyStore";
+import type { NetworkMessage, ScoreItem } from "../network/protocol/messages";
+import { lobbyStore } from "../store/lobbyStore";
 import type { BotDifficulty, GameMode, MatchSnapshot } from "../types/game";
-import { isBotDifficulty, isGameMode } from "../types/game";
+import { ClientLobby } from "./clientLobby";
+import { LobbyConnection, lobbyErrorMessage } from "./lobbyConnection";
+import { HostLobby } from "./hostLobby";
+import { NetworkMatchRunner } from "./networkMatchRunner";
 import {
   DEFAULT_CLOCK,
   DEFAULT_DEPS,
@@ -54,7 +21,7 @@ import {
   type SessionDeps,
   type SoloMatchOptions,
 } from "./sessionDeps";
-import { buildCarNames, buildEndHud } from "./sessionHud";
+import { buildEndHud } from "./sessionHud";
 import { SESSION_STATE, type SessionState } from "./sessionState";
 import { SoloSession } from "./soloSession";
 
@@ -69,16 +36,6 @@ export type {
   SoloMatchOptions,
 } from "./sessionDeps";
 
-const HELLO_TOKEN_LENGTH = 16;
-const TOKEN_ALPHABET =
-  "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
-
-function createHelloToken(randomBytes: RandomBytes): string {
-  return Array.from(randomBytes(HELLO_TOKEN_LENGTH), (byte) =>
-    TOKEN_ALPHABET.charAt(byte % TOKEN_ALPHABET.length),
-  ).join("");
-}
-
 export class SessionController {
   private state: SessionState = SESSION_STATE.idle;
   private readonly listeners = new Set<() => void>();
@@ -90,13 +47,10 @@ export class SessionController {
   private readonly audio: CarAudio;
   private readonly solo: SoloSession;
   private startToken = 0;
-  private lobbyTransport: PeerTransport | null = null;
-  private lobbyIsHost = false;
-  private handshakeClient: HandshakeClient | null = null;
-  private lobbyUnsubscribers: Unsubscribe[] = [];
-  private connectTimer: unknown = null;
   private resultTimer: unknown = null;
-  private lobbyRoster: RosterHandshakeHost | null = null;
+  private readonly lobby: LobbyConnection;
+  private readonly hostLobby: HostLobby;
+  private readonly clientLobby: ClientLobby;
   private readonly matchRunner: NetworkMatchRunner;
 
   constructor(deps: SessionDeps = DEFAULT_DEPS) {
@@ -123,6 +77,26 @@ export class SessionController {
       onMatchEnd: (scores, localPid, winners, gameMode, names) =>
         this.finishNetworkMatch(scores, localPid, winners, gameMode, names),
     });
+    this.lobby = new LobbyConnection(this.lobbyDeps.timers);
+    this.hostLobby = new HostLobby(
+      {
+        lobbyDeps: this.lobbyDeps,
+        clock: this.clock,
+        getState: () => this.state,
+        onFail: (reason, detail) => this.failLobby(reason, detail),
+      },
+      this.lobby,
+    );
+    this.clientLobby = new ClientLobby(
+      {
+        lobbyDeps: this.lobbyDeps,
+        getState: () => this.state,
+        onFail: (reason, detail) => this.failLobby(reason, detail),
+        onJoined: () => this.setState(SESSION_STATE.joinedLobby),
+        onMatchStart: (msg, localPid) => this.beginClientMatch(msg, localPid),
+      },
+      this.lobby,
+    );
   }
 
   // Must run synchronously inside a user gesture (Play tap) so iOS Safari allows playback.
@@ -183,134 +157,35 @@ export class SessionController {
 
   createRoom(name: string): void {
     this.assertIdle("create room");
-    const code = generateUniqueRoomCode(
-      () => false,
-      undefined,
-      this.lobbyDeps.randomBytes,
-    );
-    debugLog("mp:host", () => `createRoom codeOk=${code !== null}`);
-    if (code === null) {
-      lobbyStore.set({ status: "error", error: "Could not create room" });
-      return;
-    }
-    const hostName = name.trim() || generatePlayerName();
-    const roster = new RosterHandshakeHost(
-      { pid: HOST_PID, name: hostName },
-      (players) => {
-        lobbyStore.set({ players });
-        this.broadcastLobby();
-      },
-      (taken) => generateUniquePlayerName(taken),
-    );
-    this.lobbyRoster = roster;
-    this.lobbyIsHost = true;
-    this.lobbyTransport = new PeerTransport({
-      role: "host",
-      peerId: hostPeerIdFor(code),
-      peerFactory: this.lobbyDeps.peerFactory,
-      handshake: roster,
-    });
-    this.lobbyUnsubscribers = [
-      this.lobbyTransport.onPeerChange((event) => {
-        if (
-          event.kind === "error" &&
-          event.peerId === hostPeerIdFor(code) &&
-          this.state === SESSION_STATE.hostingLobby
-        ) {
-          this.failLobby("connect-error", event.detail);
-        }
-      }),
-    ];
-    lobbyStore.set({
-      role: "host",
-      roomCode: code,
-      status: "ready",
-      pid: HOST_PID,
-      players: [{ pid: HOST_PID, name: hostName }],
-      bots: gameConfig.botDefaultCount,
-      gameMode: "crashfest",
-      botDifficulty: "normal",
-      error: null,
-    });
+    if (!this.hostLobby.create(name)) return;
     this.setState(SESSION_STATE.hostingLobby);
   }
 
   setLobbyBotCount(count: number): void {
     if (this.state !== SESSION_STATE.hostingLobby) return;
-    lobbyStore.set({ bots: clampBotCount(count) });
-    this.broadcastLobby();
+    this.hostLobby.setBotCount(count);
   }
 
   setLobbyGameMode(gameMode: GameMode): void {
     if (this.state !== SESSION_STATE.hostingLobby) return;
-    lobbyStore.set({ gameMode });
-    this.broadcastLobby();
+    this.hostLobby.setGameMode(gameMode);
   }
 
   setLobbyBotDifficulty(botDifficulty: BotDifficulty): void {
     if (this.state !== SESSION_STATE.hostingLobby) return;
-    lobbyStore.set({ botDifficulty });
-    this.broadcastLobby();
-  }
-
-  private broadcastLobby(): void {
-    if (!this.lobbyIsHost || this.lobbyTransport === null) return;
-    const snapshot = lobbyStore.getSnapshot();
-    this.lobbyTransport.send(
-      {
-        v: PROTOCOL_VERSION,
-        t: "lobby",
-        players: snapshot.players.map((player): LobbyPlayerItem => [
-          player.pid,
-          player.name,
-          "h",
-          true,
-        ]),
-        bots: snapshot.bots,
-        cfg: {
-          gameMode: snapshot.gameMode,
-          botDifficulty: snapshot.botDifficulty,
-        },
-      },
-      "reliable",
-    );
+    this.hostLobby.setBotDifficulty(botDifficulty);
   }
 
   startMatch(): void {
     if (
       this.state !== SESSION_STATE.hostingLobby ||
-      this.lobbyTransport === null
+      this.lobby.transport === null
     ) {
       return;
     }
-    const snapshot = lobbyStore.getSnapshot();
-    const humans = snapshot.players.map((player) => player.pid);
-    const bots = Array.from(
-      { length: clampBotCount(snapshot.bots) },
-      (_, index) => humans.length + index,
-    );
-    if (totalCarCount(humans.length, bots.length) < 2) {
-      lobbyStore.set({ error: "Need at least 2 cars" });
-      return;
-    }
-    const transport = this.lobbyTransport;
-    debugLog(
-      "mp:host",
-      () => `startMatch humans=${humans.length} bots=${bots.length}`,
-    );
-    const seed = this.clock.randomSeed();
-    const carNames = buildCarNames(snapshot.players, bots.length);
-    this.matchRunner.prepareHost({
-      transport,
-      humanPids: humans,
-      botPids: bots,
-      botDifficulty: snapshot.botDifficulty,
-      gameMode: snapshot.gameMode,
-      names: carNames,
-      seed,
-      pidForPeer: (peerId) => this.lobbyRoster?.pidForPeer(peerId),
-      peerIdForPid: (pid) => this.lobbyRoster?.peerIdForPid(pid),
-    });
+    const config = this.hostLobby.buildMatchConfig();
+    if (config === null) return;
+    this.matchRunner.prepareHost(config);
     this.setState(SESSION_STATE.playingNetwork);
     this.matchRunner.startHost();
   }
@@ -361,72 +236,20 @@ export class SessionController {
   returnToLobby(): void {
     if (
       this.state !== SESSION_STATE.endedNetwork ||
-      this.lobbyTransport === null
+      this.lobby.transport === null
     ) {
       return;
     }
     this.setState(
-      this.lobbyIsHost ? SESSION_STATE.hostingLobby : SESSION_STATE.joinedLobby,
+      this.lobby.isHost
+        ? SESSION_STATE.hostingLobby
+        : SESSION_STATE.joinedLobby,
     );
   }
 
   joinRoom(code: string, name: string): void {
     this.assertIdle("join room");
-    debugLog("mp:client", "joinRoom");
-    if (!validateRoomCode(code)) {
-      lobbyStore.set({ status: "error", error: "Invalid room code" });
-      return;
-    }
-    const hostPeerId = hostPeerIdFor(code);
-    const transport = new PeerTransport({
-      role: "client",
-      hostPeerId,
-      peerFactory: this.lobbyDeps.peerFactory,
-    });
-    const handshake = attachHandshakeClient(transport, hostPeerId);
-    const token = createHelloToken(this.lobbyDeps.randomBytes);
-    this.lobbyTransport = transport;
-    this.lobbyIsHost = false;
-    this.handshakeClient = handshake;
-    this.lobbyUnsubscribers = [
-      transport.onPeerChange((event) => {
-        if (event.peerId !== hostPeerId) {
-          return;
-        }
-        if (event.kind === "open") {
-          sendHello(transport, name.trim(), token);
-        } else if (
-          event.kind === "close" &&
-          this.state !== SESSION_STATE.idle
-        ) {
-          this.failLobby("host-left");
-        } else if (
-          event.kind === "error" &&
-          this.state === SESSION_STATE.joining
-        ) {
-          this.failLobby("connect-error", event.detail);
-        }
-      }),
-      handshake.onOutcome((outcome) => this.handleHandshakeOutcome(outcome)),
-      transport.onMessage((msg: NetworkMessage, from) => {
-        if (from === hostPeerId && msg.t === "lobby") {
-          this.applyLobbyMessage(msg);
-        }
-      }),
-    ];
-    this.connectTimer = this.lobbyDeps.timers.setTimeout(() => {
-      this.connectTimer = null;
-      this.failLobby("timeout");
-    }, gameConfig.lobbyConnectTimeoutMs);
-    lobbyStore.set({
-      role: "client",
-      roomCode: code,
-      status: "connecting",
-      pid: null,
-      players: [],
-      bots: 0,
-      error: null,
-    });
+    if (!this.clientLobby.join(code, name)) return;
     this.setState(SESSION_STATE.joining);
   }
 
@@ -439,72 +262,19 @@ export class SessionController {
     this.matchRunner.reset();
     this.solo.dispose();
     this.audio.dispose();
-    if (this.lobbyTransport !== null) {
-      this.teardownLobby();
+    if (this.lobby.transport !== null) {
+      this.lobby.teardown();
       lobbyStore.reset();
     }
     this.setState(SESSION_STATE.idle);
   }
 
-  private handleHandshakeOutcome(outcome: HandshakeOutcome): void {
-    if (outcome.kind === "reject") {
-      this.failLobby(outcome.reason);
-      return;
-    }
-    this.clearConnectTimer();
-    lobbyStore.set({ status: "ready", pid: outcome.pid, error: null });
-    this.setState(SESSION_STATE.joinedLobby);
-    this.listenForMatchStart(outcome.pid);
-  }
-
-  private listenForMatchStart(localPid: number): void {
-    const transport = this.lobbyTransport;
-    if (transport === null) return;
-    this.lobbyUnsubscribers.push(
-      transport.onMessage((msg: NetworkMessage) => {
-        if (msg.t !== "start" || this.matchRunner.hasClientStart()) return;
-        this.beginClientMatch(msg, localPid);
-      }),
-    );
-  }
-
-  private applyLobbyMessage(msg: LobbyMessage): void {
-    if (this.lobbyIsHost) return;
-    const parsed = validateLobbyEnvelope(msg);
-    if (!parsed.ok) return;
-    const { cfg } = parsed.value;
-    if (!isGameMode(cfg.gameMode) || !isBotDifficulty(cfg.botDifficulty)) {
-      return;
-    }
-    lobbyStore.set({
-      players: parsed.value.players.map(([pid, name]): LobbyPlayer => ({
-        pid,
-        name,
-      })),
-      bots: parsed.value.bots,
-      gameMode: cfg.gameMode,
-      botDifficulty: cfg.botDifficulty,
-    });
-  }
-
   private beginClientMatch(msg: NetworkMessage, localPid: number): void {
-    const parsed = parseStart(msg);
-    const transport = this.lobbyTransport;
-    debugLog(
-      "mp:client",
-      () =>
-        `beginClientMatch parsed=${parsed.ok} transport=${transport !== null} surface=${this.matchRunner.hasSurface()}`,
+    if (this.matchRunner.hasClientStart()) return;
+    const start = this.clientLobby.buildStart(msg, localPid, () =>
+      this.matchRunner.hasSurface(),
     );
-    if (!parsed.ok || transport === null) return;
-    const start: ClientStart = {
-      start: msg,
-      gameMode: parsed.value.gameMode,
-      localPid,
-      transport,
-      hostPeerId: hostPeerIdFor(lobbyStore.getSnapshot().roomCode ?? ""),
-      arena: arenaFromStart(parsed.value),
-      names: new Map(parsed.value.names ?? []),
-    };
+    if (start === null) return;
     this.matchRunner.stageClientStart(start);
     this.setState(SESSION_STATE.playingNetwork);
     this.matchRunner.startPendingClient();
@@ -512,7 +282,7 @@ export class SessionController {
 
   private failLobby(reason: string, detail?: string): void {
     this.matchRunner.reset();
-    this.teardownLobby();
+    this.lobby.teardown();
     lobbyStore.set({
       role: "none",
       roomCode: null,
@@ -520,32 +290,9 @@ export class SessionController {
       pid: null,
       players: [],
       bots: 0,
-      error:
-        reason === "connect-error"
-          ? peerErrorToMessage(detail)
-          : reasonToMessage(reason),
+      error: lobbyErrorMessage(reason, detail),
     });
     this.setState(SESSION_STATE.idle);
-  }
-
-  private teardownLobby(): void {
-    this.clearConnectTimer();
-    this.lobbyIsHost = false;
-    for (const unsubscribe of this.lobbyUnsubscribers) {
-      unsubscribe();
-    }
-    this.lobbyUnsubscribers = [];
-    this.handshakeClient?.dispose();
-    this.handshakeClient = null;
-    this.lobbyTransport?.close();
-    this.lobbyTransport = null;
-    this.lobbyRoster = null;
-  }
-
-  private clearConnectTimer(): void {
-    if (this.connectTimer === null) return;
-    this.lobbyDeps.timers.clearTimeout(this.connectTimer);
-    this.connectTimer = null;
   }
 
   private assertIdle(action: string): void {
