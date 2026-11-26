@@ -1,8 +1,7 @@
-import { debugLog } from "../../config/debugLog";
 import type {
+  PeerId,
   ChannelKind,
   PeerEvent,
-  PeerId,
   PeerRole,
 } from "../../types/network";
 import { decodeMessage, encodeMessage } from "../protocol/codec";
@@ -13,32 +12,24 @@ import {
 } from "../protocol/validate";
 import type { HandshakeHost } from "../session/HandshakeHost";
 import type { Transport, Unsubscribe } from "./Transport";
+import {
+  type DataConnectionLike,
+  PEER_SERIALIZATION,
+  type PeerFactory,
+  type PeerLike,
+} from "./peerTypes";
+import { errorDetail, parseRecord } from "./transportHelpers";
+import { createTransportLog, type TransportLog } from "./transportLog";
 
-export const PEER_SERIALIZATION = "json";
-
-export interface ConnectOptions {
-  readonly reliable: boolean;
-  readonly serialization: string;
-}
-
-export type ConnectionEventName = "open" | "data" | "close" | "error";
-export type PeerEventName = "open" | "connection" | "error" | "close";
-
-export interface DataConnectionLike {
-  readonly peer: PeerId;
-  readonly reliable: boolean;
-  send(data: string): void;
-  close(): void;
-  on(event: ConnectionEventName, handler: (value?: unknown) => void): void;
-}
-
-export interface PeerLike {
-  on(event: PeerEventName, handler: (value?: unknown) => void): void;
-  connect(peerId: PeerId, options: ConnectOptions): DataConnectionLike;
-  destroy(): void;
-}
-
-export type PeerFactory = (id?: PeerId) => PeerLike;
+export {
+  PEER_SERIALIZATION,
+  type ConnectOptions,
+  type ConnectionEventName,
+  type DataConnectionLike,
+  type PeerEventName,
+  type PeerFactory,
+  type PeerLike,
+} from "./peerTypes";
 
 export type PeerTransportOptions =
   | {
@@ -72,33 +63,6 @@ type PeerHandler = (event: PeerEvent) => void;
 
 const defaultNow = (): number => Date.now();
 
-// PeerJS errors carry a machine-readable `type` (e.g. 'peer-unavailable'); fall back to the message.
-function errorDetail(value: unknown): string | undefined {
-  if (typeof value !== "object" || value === null) {
-    return typeof value === "string" && value.length > 0 ? value : undefined;
-  }
-  const { type, message } = value as { type?: unknown; message?: unknown };
-  if (typeof type === "string" && type.length > 0) {
-    return type;
-  }
-  return typeof message === "string" && message.length > 0
-    ? message
-    : undefined;
-}
-
-function parseRecord(text: string): Record<string, unknown> | null {
-  try {
-    const parsed: unknown = JSON.parse(text);
-    return typeof parsed === "object" &&
-      parsed !== null &&
-      !Array.isArray(parsed)
-      ? (parsed as Record<string, unknown>)
-      : null;
-  } catch {
-    return null;
-  }
-}
-
 // Each remote peer owns two connections: reliable (control and events) and unreliable (in, snap).
 export class PeerTransport implements Transport {
   readonly role: PeerRole;
@@ -110,9 +74,8 @@ export class PeerTransport implements Transport {
   private readonly now: () => number;
   private readonly anchorPeerId: PeerId;
   private readonly handshake: HandshakeHost | null;
+  private readonly log: TransportLog = createTransportLog();
   private isClosed = false;
-  private sendCounts = { in: 0, snap: 0 };
-  private recvCounts = { in: 0, snap: 0 };
 
   constructor(options: PeerTransportOptions) {
     this.role = options.role;
@@ -142,7 +105,7 @@ export class PeerTransport implements Transport {
       return;
     }
     const text = encodeMessage(message);
-    this.logSend(message, channel, true);
+    this.log.logSend(message, channel, true);
     for (const link of [...this.links.values()]) {
       const slot = channel === "reliable" ? link.reliable : link.unreliable;
       if (slot?.isOpen === true) {
@@ -157,7 +120,7 @@ export class PeerTransport implements Transport {
       return;
     }
     const slot = channel === "reliable" ? link.reliable : link.unreliable;
-    this.logSend(message, channel, slot?.isOpen === true);
+    this.log.logSend(message, channel, slot?.isOpen === true);
     if (slot?.isOpen === true) {
       slot.conn.send(encodeMessage(message));
     }
@@ -252,7 +215,7 @@ export class PeerTransport implements Transport {
       this.rejectInbound(link.peerId);
       return;
     }
-    this.logRecv(result.value);
+    this.log.logRecv(result.value);
     for (const handler of this.messageHandlers) {
       handler(result.value, link.peerId);
     }
@@ -315,39 +278,6 @@ export class PeerTransport implements Transport {
     if (link.isAnnounced) {
       this.emitPeer({ kind: "close", peerId: link.peerId });
     }
-  }
-
-  private logSend(
-    message: NetworkMessage,
-    channel: ChannelKind,
-    open: boolean,
-  ): void {
-    if (message.t === "in" || message.t === "snap") {
-      this.sendCounts[message.t] += 1;
-      if (this.sendCounts[message.t] % 60 === 0) {
-        debugLog(
-          "mp:net",
-          () =>
-            `send ${message.t} n=${this.sendCounts[message.t]} open=${open}`,
-        );
-      }
-      return;
-    }
-    debugLog("mp:net", () => `send t=${message.t} ch=${channel} open=${open}`);
-  }
-
-  private logRecv(message: NetworkMessage): void {
-    if (message.t === "in" || message.t === "snap") {
-      this.recvCounts[message.t] += 1;
-      if (this.recvCounts[message.t] % 60 === 0) {
-        debugLog(
-          "mp:net",
-          () => `recv ${message.t} n=${this.recvCounts[message.t]}`,
-        );
-      }
-      return;
-    }
-    debugLog("mp:net", () => `recv t=${message.t}`);
   }
 
   private emitError(peerId: PeerId, value: unknown): void {

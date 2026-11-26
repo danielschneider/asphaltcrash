@@ -1,0 +1,25 @@
+@media (min-width: 720px) {
+  .menu-inner {
+    max-width: min(640px, 100%);
+  }
+
+  .result-row {
+    grid-template-columns: 1fr auto auto;
+    grid-template-areas: "name score badge";
+  }
+}
+
+@media (max-height: 500px) and (orientation: landscape) {
+  .menu-screen {
+    padding-top: 12px;
+    padding-bottom: 12px;
+  }
+
+  .menu-inner {
+    gap: 12px;
+  }
+
+  .brand-logo {
+    width: 56px;
+  }
+}

@@ -1,0 +1,35 @@
+.menu-screen {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
+  padding: var(--menu-pad);
+  padding-bottom: calc(var(--menu-pad) + env(safe-area-inset-bottom));
+}
+
+.menu-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: clamp(16px, 3vh, 28px);
+  width: 100%;
+  max-width: min(560px, 100%);
+  margin: auto;
+}
+
+.menu-card {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: 100%;
+  padding: clamp(16px, 3vw, 28px);
+  border: 1px solid var(--color-border);
+  border-radius: 18px;
+  background: rgba(31, 35, 43, 0.85);
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.35);
+}

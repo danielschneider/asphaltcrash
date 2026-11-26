@@ -1,0 +1,40 @@
+.brand {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: clamp(6px, 1.5vh, 12px);
+}
+
+.brand-logo {
+  width: clamp(72px, 16vh, 128px);
+  height: auto;
+  filter: drop-shadow(0 6px 18px rgba(230, 57, 70, 0.35));
+}
+
+.brand-title {
+  margin: 0;
+  font-size: clamp(1.9rem, 6vw, 3.25rem);
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  text-align: center;
+  background: linear-gradient(
+    180deg,
+    #fff 0%,
+    var(--color-gold) 55%,
+    var(--color-accent) 100%
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.menu-subtitle {
+  margin: 0;
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.25em;
+  text-transform: uppercase;
+  color: var(--color-muted);
+  text-align: center;
+}

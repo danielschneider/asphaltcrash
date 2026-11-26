@@ -1,0 +1,49 @@
+.joystick-zone {
+  position: absolute;
+  inset: 0;
+}
+
+.joystick-base {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: calc(var(--joystick-diameter, 144px));
+  height: calc(var(--joystick-diameter, 144px));
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.12);
+  border: 2px solid rgba(255, 255, 255, 0.25);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 100ms ease-out;
+}
+
+.joystick-knob {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 56px;
+  height: 56px;
+  margin: -28px 0 0 -28px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.5);
+  pointer-events: none;
+}
+
+.rotate-hint {
+  display: none;
+  position: absolute;
+  inset: 0;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(27, 29, 34, 0.92);
+  font-size: 1.25rem;
+  text-align: center;
+  z-index: 10;
+}
+
+@media (orientation: portrait) {
+  .rotate-hint {
+    display: flex;
+  }
+}

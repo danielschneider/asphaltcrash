@@ -1,0 +1,143 @@
+.match-screen {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+.game-surface {
+  position: absolute;
+  inset: 0;
+}
+
+.hud {
+  position: absolute;
+  top: calc(env(safe-area-inset-top) + 8px);
+  left: calc(env(safe-area-inset-left) + 8px);
+  right: calc(env(safe-area-inset-right) + 8px);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 8px;
+  z-index: 1;
+  pointer-events: none;
+}
+
+.hud button,
+.match-back {
+  pointer-events: auto;
+}
+
+.timer-badge {
+  padding: 6px 14px;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.55);
+  font-variant-numeric: tabular-nums;
+  font-size: 1.25rem;
+  font-weight: 700;
+}
+
+.connectivity-signal {
+  position: absolute;
+  top: 0;
+  right: calc(env(safe-area-inset-right) + 68px);
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  height: 30px;
+  padding: 5px 8px;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.55);
+}
+
+.connectivity-bar {
+  width: 5px;
+  height: 8px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.18);
+}
+
+.connectivity-bar:nth-child(2) {
+  height: 12px;
+}
+
+.connectivity-bar:nth-child(3) {
+  height: 16px;
+}
+
+.connectivity-bar:nth-child(4) {
+  height: 20px;
+}
+
+.connectivity-good .filled {
+  background: #43d17c;
+}
+
+.connectivity-fair .filled {
+  background: #ffd166;
+}
+
+.connectivity-poor .filled {
+  background: #e63946;
+}
+
+.hud-panel {
+  display: flex;
+  gap: 12px;
+  padding: 6px 12px;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.55);
+  font-size: 0.9rem;
+}
+
+.hud-paused {
+  padding: 6px 12px;
+  border-radius: 8px;
+  background: rgba(230, 57, 70, 0.8);
+  font-weight: 600;
+}
+
+.hud-toggle {
+  min-height: 36px;
+  padding: 0 12px;
+  border: none;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.55);
+  color: inherit;
+}
+
+.hud-scoreboard,
+.hud-feed {
+  margin: 0;
+  padding: 6px 12px 6px 28px;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.55);
+  font-size: 0.85rem;
+}
+
+.hud-scoreboard {
+  max-height: 50vh;
+  max-height: 50dvh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  pointer-events: auto;
+  touch-action: pan-y;
+}
+
+.hud-feed {
+  list-style: none;
+  padding-left: 12px;
+}
+
+.match-back {
+  position: absolute;
+  top: calc(env(safe-area-inset-top) + 8px);
+  right: calc(env(safe-area-inset-right) + 8px);
+  min-height: 36px;
+  padding: 0 12px;
+  border: none;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.55);
+  color: inherit;
+}
