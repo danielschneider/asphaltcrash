@@ -17,11 +17,12 @@ const RESTRICTIONS = {
   pixi: {
     group: ["pixi.js", "pixi.js/*"],
     message:
-      "pixi.js only in Renderer.ts, Effects.ts, Camera.ts (ARCHITECTURE section 4).",
+      "pixi.js only in Renderer.ts, Effects.ts, Camera.ts, src/game/render/** (ARCHITECTURE section 4).",
   },
   matter: {
     group: ["matter-js", "matter-js/*"],
-    message: "matter-js only in Physics.ts (AGENTS section 3).",
+    message:
+      "matter-js only in Physics.ts and src/game/physics/** (AGENTS section 3).",
   },
   peerjs: {
     group: ["peerjs", "peerjs/*"],
@@ -63,7 +64,7 @@ const RESTRICTED_PROPERTIES = {
   processEnv: {
     object: "process",
     property: "env",
-    message: "Read environment values through src/config/env.ts only.",
+    message: "Read environment values via import.meta.env in src/config only.",
   },
 };
 
@@ -91,21 +92,26 @@ const LAYER_IMPORT_KEYS = {
 const COMPLEXITY_STRICT_FILES = [
   "src/game/sim/**/*.ts",
   "src/game/Physics.ts",
+  "src/game/physics/**/*.ts",
   "src/game/Rules.ts",
 ];
 
 const LAYER_FILES = {
   L2: [
     "src/game/sim/**/*.ts",
-    "src/game/Entities.ts",
     "src/game/Rules.ts",
     "src/game/WorldView.ts",
     "src/game/bots/**/*.ts",
     "src/types/**/*.ts",
     "src/config/**/*.ts",
   ],
-  physics: ["src/game/Physics.ts"],
-  render: ["src/game/Renderer.ts", "src/game/Effects.ts", "src/game/Camera.ts"],
+  physics: ["src/game/Physics.ts", "src/game/physics/**/*.ts"],
+  render: [
+    "src/game/Renderer.ts",
+    "src/game/Effects.ts",
+    "src/game/Camera.ts",
+    "src/game/render/**/*.ts",
+  ],
   runtime: [
     "src/game/Engine.ts",
     "src/game/input/**/*.ts",
@@ -240,7 +246,11 @@ export default defineConfig(
     },
   },
   {
-    files: ["src/game/Physics.ts", "src/game/Rules.ts"],
+    files: [
+      "src/game/Physics.ts",
+      "src/game/physics/**/*.ts",
+      "src/game/Rules.ts",
+    ],
     rules: {
       "no-restricted-properties": restrictProperties([
         "dateNow",

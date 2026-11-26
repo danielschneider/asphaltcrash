@@ -25,11 +25,7 @@ const NETWORK_PATH = "src/network/";
 const COMPONENTS_PATH = "src/components/";
 const SIM_PATHS = ["src/game/sim/", "src/game/Engine.ts"] as const;
 
-const L2_EXACT = [
-  "src/game/Entities.ts",
-  "src/game/Rules.ts",
-  "src/game/WorldView.ts",
-];
+const L2_EXACT = ["src/game/Rules.ts", "src/game/WorldView.ts"];
 const L2_PREFIXES = [
   "src/game/sim/",
   "src/game/bots/",
@@ -41,6 +37,9 @@ const L0_FILES = [
   "src/game/Effects.ts",
   "src/game/Camera.ts",
 ];
+const L0_PREFIXES = ["src/game/render/"];
+const PHYSICS_FILES = ["src/game/Physics.ts"];
+const PHYSICS_PREFIXES = ["src/game/physics/"];
 const L3_FILES = ["src/game/Engine.ts"];
 const L3_PREFIXES = ["src/game/input/", "src/game/shadow/"];
 const UI_EXACT = ["src/App.tsx", "src/main.tsx"];
@@ -56,13 +55,16 @@ const LAYER_RULES: readonly LayerRule[] = [
   },
   {
     name: "physics adapter",
-    matches: (p) => p === "src/game/Physics.ts",
+    matches: (p) =>
+      PHYSICS_FILES.includes(p) ||
+      PHYSICS_PREFIXES.some((x) => p.startsWith(x)),
     forbiddenPackages: [...REACT, ...PIXI, ...PEER],
     forbiddenPaths: [NETWORK_PATH, COMPONENTS_PATH],
   },
   {
     name: "L0 renderer",
-    matches: (p) => L0_FILES.includes(p),
+    matches: (p) =>
+      L0_FILES.includes(p) || L0_PREFIXES.some((x) => p.startsWith(x)),
     forbiddenPackages: [...REACT, ...MATTER, ...PEER],
     forbiddenPaths: [NETWORK_PATH, COMPONENTS_PATH],
   },
