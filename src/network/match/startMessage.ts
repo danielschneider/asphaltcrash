@@ -7,7 +7,13 @@ import {
   type SpawnItem,
   type StartMessage,
 } from "../protocol/messages";
-import { validateStart, type ParseResult } from "../protocol/validate";
+import {
+  validateStart,
+  type ParsedStart,
+  type ParseResult,
+} from "../protocol/validate";
+
+export type { ParsedStart };
 
 function spawnItemsFor(setup: MatchSetup): SpawnItem[] {
   const pids = [...setup.humanPlayerIds, ...setup.botPlayerIds];
@@ -40,7 +46,7 @@ export function buildStart(
   };
 }
 
-export function parseStart(raw: unknown): ParseResult<StartMessage> {
+export function parseStart(raw: unknown): ParseResult<ParsedStart> {
   return validateStart(raw);
 }
 

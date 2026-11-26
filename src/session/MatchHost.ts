@@ -15,11 +15,7 @@ import {
   type ScoreItem,
 } from "../network/protocol/messages";
 import { validateReady } from "../network/protocol/validate";
-import {
-  classifyConnectivity,
-  JitterTracker,
-  makePong,
-} from "../network/sync/PingPong";
+import { makePong } from "../network/sync/PingPong";
 import type { ConnectivitySnapshot } from "../store/hudStore";
 import type { Transport } from "../network/transport/Transport";
 import type {
@@ -30,6 +26,9 @@ import type {
   MatchSnapshot,
 } from "../types/game";
 import type { ChannelKind, PeerId } from "../types/network";
+import { HostConnectivity } from "./hostConnectivity";
+import type { LobbyTimers, SessionClock } from "./sessionDeps";
+import { scoresFromSnapshot } from "./sessionHud";
 
 export const MATCH_HOST_PHASE = {
   idle: "idle",
@@ -43,10 +42,10 @@ export type MatchHostPhase =
 
 export interface MatchHostDeps {
   readonly transport: Transport;
-  readonly now: () => number;
-  readonly setTimeout: (handler: () => void, ms: number) => unknown;
-  readonly clearTimeout: (handle: unknown) => void;
-  readonly newMatchId: () => number;
+  readonly now: SessionClock["now"];
+  readonly setTimeout: LobbyTimers["setTimeout"];
+  readonly clearTimeout: LobbyTimers["clearTimeout"];
+  readonly newMatchId: SessionClock["newMatchId"];
   readonly makeSim: (setup: MatchSetup) => MatchSimulation;
   readonly seed: number;
   readonly humanPids: readonly number[];
@@ -80,6 +79,7 @@ export class MatchHost {
   private readonly pump: SnapshotPump;
   private readonly interpolator: StateInterpolator;
   private readonly readyPids = new Set<number>();
+  private readonly connectivityState = new HostConnectivity();
   private phaseValue: MatchHostPhase = MATCH_HOST_PHASE.idle;
   private matchId = 0;
   private readyTimer: unknown = null;
@@ -87,8 +87,6 @@ export class MatchHost {
   private accumulatorMs = 0;
   private backlogMs = 0;
   private snapsSent = 0;
-  private readonly pingArrivalMs = new Map<number, number>();
-  private readonly pingIntervals = new Map<number, JitterTracker>();
 
   constructor(deps: MatchHostDeps) {
     this.deps = deps;
@@ -181,7 +179,7 @@ export class MatchHost {
     if (pid === undefined || !this.clientPids.includes(pid)) return false;
     if (msg.t === "ping") {
       if (!Number.isFinite(msg.c)) return false;
-      this.recordPing(pid, this.deps.now());
+      this.connectivityState.recordPing(pid, this.deps.now());
       this.deps.transport.sendTo(
         fromPeerId,
         makePong(msg, this.deps.now()),
@@ -266,44 +264,7 @@ export class MatchHost {
   }
 
   connectivity(nowMs: number): ConnectivitySnapshot | null {
-    if (this.clientPids.length === 0) return null;
-    let worstRtt = 0;
-    let worstJitter = 0;
-    let worstQuality: "good" | "fair" | "poor" = "good";
-    for (const pid of this.clientPids) {
-      const lastPingMs = this.pingArrivalMs.get(pid);
-      if (lastPingMs === undefined) {
-        worstQuality = "poor";
-        continue;
-      }
-      const silenceMs = nowMs - lastPingMs;
-      const jitterMs = this.pingIntervals.get(pid)?.average() ?? 0;
-      const quality =
-        silenceMs > 6000 ? "poor" : classifyConnectivity(silenceMs, jitterMs);
-      if (silenceMs > worstRtt) worstRtt = silenceMs;
-      if (jitterMs > worstJitter) worstJitter = jitterMs;
-      if (quality === "poor") worstQuality = "poor";
-      else if (quality === "fair" && worstQuality === "good")
-        worstQuality = "fair";
-    }
-    return {
-      quality: worstQuality,
-      rttMs: worstRtt,
-      jitterMs: worstJitter,
-    };
-  }
-
-  private recordPing(pid: number, nowMs: number): void {
-    const previousMs = this.pingArrivalMs.get(pid);
-    this.pingArrivalMs.set(pid, nowMs);
-    let tracker = this.pingIntervals.get(pid);
-    if (tracker === undefined) {
-      tracker = new JitterTracker();
-      this.pingIntervals.set(pid, tracker);
-    }
-    if (previousMs !== undefined) {
-      tracker.addSample(nowMs - previousMs);
-    }
+    return this.connectivityState.snapshot(this.clientPids, nowMs);
   }
 
   private sendToPid(
@@ -336,11 +297,7 @@ export class MatchHost {
       v: PROTOCOL_VERSION,
       t: "end",
       mid: this.matchId,
-      scores: snapshot.cars.map((car): ScoreItem =>
-        this.sim.gameMode === "crashfest"
-          ? [car.pid, 0, car.score, 0]
-          : [car.pid, car.score, 0, car.score],
-      ),
+      scores: scoresFromSnapshot(snapshot.cars, this.sim.gameMode),
       winners:
         this.sim.gameMode === "crashfest"
           ? [...this.sim.winnerPids]

@@ -29,6 +29,8 @@ const LOBBY_TIMERS: LobbyDeps["timers"] = {
   setTimeout: () => 0,
   clearTimeout: () => undefined,
 };
+const FIXED_SEED = 1234;
+const FIXED_MATCH_ID = 7;
 
 interface FrameHarness {
   readonly controller: SessionController;
@@ -66,6 +68,10 @@ function createHarness(hub: FakePeerHub): FrameHarness {
     },
     cancelFrame: () => undefined,
     lobby: { peerFactory: hub.factory, timers: LOBBY_TIMERS },
+    clock: {
+      randomSeed: () => FIXED_SEED,
+      newMatchId: () => FIXED_MATCH_ID,
+    },
   });
   return { controller, frames, renderers };
 }
@@ -196,6 +202,21 @@ describe("network match lifecycle after finish", () => {
     unsubscribe();
     expect(client.controller.getState()).toBe(SESSION_STATE.idle);
     expect(errors).toContain("Host left the room");
+  });
+  it("client receives the host's fixed seed and match id from the injected clock", async () => {
+    const startSpy = vi.spyOn(MatchClient.prototype, "start");
+    const { host, client } = await connectHostAndClient(hub);
+    host.controller.setLobbyBotCount(1);
+    host.controller.startMatch();
+    await flush();
+    await client.controller.attachMatchRenderer({} as HTMLElement);
+    expect(startSpy.mock.calls[0]?.[0]).toMatchObject({
+      t: "start",
+      mid: FIXED_MATCH_ID,
+      seed: FIXED_SEED,
+    });
+    host.controller.backToIdle();
+    client.controller.backToIdle();
   });
 });
 

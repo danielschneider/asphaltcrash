@@ -12,7 +12,7 @@ export {
   validateLobbyEnvelope,
   type HelloFields,
 } from "./lobby";
-export { validateStart } from "./start";
+export { validateStart, type ParsedStart } from "./start";
 export { validatePingPayload, validatePongPayload } from "./sync";
 export { validateReady } from "./match";
 export { validateMessage } from "./message";

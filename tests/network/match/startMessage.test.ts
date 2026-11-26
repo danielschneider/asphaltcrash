@@ -63,6 +63,34 @@ describe("startMessage", () => {
     expect(parseStart(raw).ok).toBe(false);
   });
 
+  it("exposes typed gameMode and humanCount", () => {
+    const parsed = parseStart(JSON.parse(JSON.stringify(buildStart(SETUP, 3))));
+    expect(parsed.ok).toBe(true);
+    if (!parsed.ok) return;
+    expect(parsed.value.gameMode).toBe("cash");
+    expect(parsed.value.humanCount).toBe(2);
+  });
+
+  it("treats an absent humanCount as zero humans", () => {
+    const msg = buildStart(SETUP, 3);
+    const raw = { ...msg, cfg: { matchSeconds: 180, botDifficulty: "normal" } };
+    const parsed = parseStart(raw);
+    expect(parsed.ok).toBe(true);
+    if (!parsed.ok) return;
+    expect(parsed.value.humanCount).toBe(0);
+  });
+
+  it.each([
+    ["negative", -1],
+    ["fractional", 1.5],
+    ["above maxCars", 99],
+    ["string", "2"],
+  ])("rejects a humanCount that is %s", (_label, humanCount) => {
+    const msg = buildStart(SETUP, 3);
+    const raw = { ...msg, cfg: { ...msg.cfg, humanCount } };
+    expect(parseStart(raw).ok).toBe(false);
+  });
+
   it("builds and validates ready for the current mid", () => {
     expect(validateReady(makeReady(7), 7).ok).toBe(true);
     expect(validateReady(makeReady(7), 8).ok).toBe(false);

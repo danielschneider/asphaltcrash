@@ -1,7 +1,7 @@
 import { debugLog } from "../config/debugLog";
 import type { WorldRenderer } from "../game/Renderer";
 import type { InputBuffer } from "../game/input/InputBuffer";
-import { buildArenaView } from "../game/arena";
+import { arenaFromStart } from "./startArena";
 import { buildWorldView } from "../game/WorldView";
 import { InputSender } from "../network/match/InputSender";
 import { RemoteView } from "../network/match/RemoteView";
@@ -136,20 +136,15 @@ export class MatchClient {
     const parsed = parseStart(raw);
     debugLog("mp:client", () => `start received ok=${parsed.ok}`);
     if (!parsed.ok) return;
-    const { mid, spawns, cfg } = parsed.value;
-    const pids = spawns.map(([pid]) => pid);
-    const humanCount = typeof cfg.humanCount === "number" ? cfg.humanCount : 0;
-    const gameMode = cfg.gameMode === "crashfest" ? "crashfest" : "cash";
-    this.matchId = mid;
-    this.gameMode = gameMode;
+    this.matchId = parsed.value.mid;
+    this.gameMode = parsed.value.gameMode;
     this.carNames = new Map(parsed.value.names ?? []);
-    this.arena = buildArenaView(
-      pids.slice(0, humanCount),
-      pids.slice(humanCount),
-      gameMode,
+    this.arena = arenaFromStart(parsed.value);
+    this.deps.transport.send(makeReady(parsed.value.mid), "reliable");
+    debugLog(
+      "mp:client",
+      () => `ready sent cars=${parsed.value.spawns.length}`,
     );
-    this.deps.transport.send(makeReady(mid), "reliable");
-    debugLog("mp:client", () => `ready sent cars=${pids.length}`);
   }
 
   private handleSnap(raw: NetworkMessage): void {

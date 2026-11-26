@@ -1,5 +1,9 @@
 import { gameConfig } from "../../../config/gameConfig";
-import { isBotDifficulty, isGameMode } from "../../../types/game";
+import {
+  isBotDifficulty,
+  isGameMode,
+  type GameMode,
+} from "../../../types/game";
 import {
   PROTOCOL_VERSION,
   type NameItem,
@@ -24,6 +28,12 @@ const SEED_MAX = 0xffff_ffff;
 const MATCH_SECONDS_MIN = 1;
 const MATCH_SECONDS_MAX = 600;
 const NAME_ITEM_MAX_CHARS = 16;
+
+export interface ParsedStart extends Omit<StartMessage, "cfg"> {
+  readonly cfg: StartMessage["cfg"];
+  readonly gameMode: GameMode;
+  readonly humanCount: number;
+}
 
 function validateSpawnItem(raw: unknown): ParseResult<SpawnItem> {
   if (!Array.isArray(raw) || raw.length !== 4) {
@@ -63,7 +73,7 @@ function validateNames(raw: unknown): ParseResult<readonly NameItem[]> {
   return validateList(raw, gameConfig.maxCars, validateNameItem, "field:names");
 }
 
-export function validateStart(raw: unknown): ParseResult<StartMessage> {
+export function validateStart(raw: unknown): ParseResult<ParsedStart> {
   if (!isRecord(raw)) {
     return fail("not-object");
   }
@@ -97,6 +107,10 @@ export function validateStart(raw: unknown): ParseResult<StartMessage> {
   ) {
     return fail("field:matchSeconds");
   }
+  const humanCount = cfg.value.humanCount ?? 0;
+  if (!isInt(humanCount, 0, gameConfig.maxCars)) {
+    return fail("field:humanCount");
+  }
   const spawns = validateList(
     raw.spawns,
     gameConfig.maxCars,
@@ -117,7 +131,9 @@ export function validateStart(raw: unknown): ParseResult<StartMessage> {
       t: "start",
       mid: raw.mid,
       seed: raw.seed,
-      cfg: { ...cfg.value, gameMode },
+      cfg: { ...cfg.value, gameMode, humanCount },
+      gameMode,
+      humanCount,
       spawns: spawns.value,
       names: names.value,
     },

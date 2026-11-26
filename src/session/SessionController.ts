@@ -6,12 +6,8 @@ import { InputBuffer } from "../game/input/InputBuffer";
 import { createInputBufferSource } from "../game/input/LocalInputSource";
 import type { InputSource } from "../game/input/InputSource";
 import { MatchSimulation } from "../game/sim/MatchSimulation";
-import { createWorldRenderer, type WorldRenderer } from "../game/Renderer";
-import { createPeerJsFactory } from "../network/transport/peerJsFactory";
-import {
-  PeerTransport,
-  type PeerFactory,
-} from "../network/transport/PeerTransport";
+import type { WorldRenderer } from "../game/Renderer";
+import { PeerTransport } from "../network/transport/PeerTransport";
 import type { Transport, Unsubscribe } from "../network/transport/Transport";
 import type { PeerId } from "../types/network";
 import {
@@ -22,7 +18,6 @@ import {
 } from "../network/session/HandshakeClient";
 import { RosterHandshakeHost } from "../network/session/RosterHandshakeHost";
 import {
-  defaultRandomBytes,
   generateUniqueRoomCode,
   hostPeerIdFor,
   validateRoomCode,
@@ -32,6 +27,7 @@ import { clampBotCount, totalCarCount } from "./lobbyRoster";
 import { MatchHost, MATCH_HOST_PHASE } from "./MatchHost";
 import { MatchClient } from "./MatchClient";
 import { frameSecondsSince } from "./frameSeconds";
+import { arenaFromStart } from "./startArena";
 import { buildNetworkHud, HudThrottle } from "./networkHud";
 import { buildWorldView } from "../game/WorldView";
 import { buildArenaView } from "../game/arena";
@@ -45,7 +41,6 @@ import {
 } from "../network/protocol/messages";
 import { validateLobbyEnvelope } from "../network/protocol/validate";
 import { generatePlayerName, generateUniquePlayerName } from "./playerNames";
-import { hudStore, type HudSnapshot, type HudStore } from "../store/hudStore";
 import {
   lobbyStore,
   type LobbyPlayer,
@@ -56,10 +51,27 @@ import type {
   ArenaView,
   BotDifficulty,
   GameMode,
-  MatchSetup,
   MatchSnapshot,
 } from "../types/game";
 import { isBotDifficulty, isGameMode } from "../types/game";
+import {
+  DEFAULT_CLOCK,
+  DEFAULT_DEPS,
+  DEFAULT_LOBBY_DEPS,
+  LOCAL_PLAYER_ID,
+  resolveFrameScheduler,
+  type FrameScheduler,
+  type LobbyDeps,
+  type SessionClock,
+  type SessionDeps,
+  type SoloMatchOptions,
+} from "./sessionDeps";
+import {
+  buildCarNames,
+  buildEndHud,
+  buildSoloSetup,
+  scoresFromSnapshot,
+} from "./sessionHud";
 
 interface ClientStart {
   readonly start: NetworkMessage;
@@ -85,117 +97,24 @@ export const SESSION_STATE = {
 
 export type SessionState = (typeof SESSION_STATE)[keyof typeof SESSION_STATE];
 
-export interface SoloMatchOptions {
-  readonly botCount: number;
-  readonly botDifficulty: BotDifficulty;
-  readonly gameMode: GameMode;
-  readonly matchSeconds: number;
-  readonly seed: number;
-}
+export type {
+  FrameScheduler,
+  LobbyDeps,
+  LobbyTimers,
+  SessionClock,
+  SessionDeps,
+  SoloMatchOptions,
+} from "./sessionDeps";
 
-export interface LobbyTimers {
-  setTimeout(callback: () => void, ms: number): unknown;
-  clearTimeout(handle: unknown): void;
-}
-
-export interface LobbyDeps {
-  readonly peerFactory: PeerFactory;
-  readonly timers: LobbyTimers;
-  readonly randomBytes: RandomBytes;
-}
-
-export interface SessionDeps {
-  readonly createRenderer: (
-    host: HTMLElement,
-    arena: ArenaView,
-  ) => Promise<WorldRenderer>;
-  readonly hud: HudStore;
-  readonly createAudio?: () => CarAudio;
-  readonly requestFrame?: (cb: (t: number) => void) => number;
-  readonly cancelFrame?: (id: number) => void;
-  readonly lobby?: Partial<LobbyDeps>;
-}
-
-const LOCAL_PLAYER_ID = 0;
 const HOST_PID = 0;
 const HELLO_TOKEN_LENGTH = 16;
 const TOKEN_ALPHABET =
   "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
-const DEFAULT_LOBBY_DEPS: LobbyDeps = {
-  peerFactory: createPeerJsFactory(),
-  timers: {
-    setTimeout: (callback, ms) => setTimeout(callback, ms),
-    clearTimeout: (handle) =>
-      clearTimeout(handle as Parameters<typeof clearTimeout>[0]),
-  },
-  randomBytes: defaultRandomBytes,
-};
-const DEFAULT_DEPS: SessionDeps = {
-  createRenderer: createWorldRenderer,
-  hud: hudStore,
-  createAudio: () => new CarAudio(),
-};
-
-function buildCarNames(
-  humans: readonly LobbyPlayer[],
-  botCount: number,
-): ReadonlyMap<number, string> {
-  const names = new Map<number, string>();
-  for (const human of humans) names.set(human.pid, human.name);
-  const firstBotPid = humans.length;
-  for (let index = 0; index < botCount; index += 1) {
-    names.set(firstBotPid + index, `CPU ${index + 1}`);
-  }
-  return names;
-}
-
-function buildSoloSetup(options: SoloMatchOptions): MatchSetup {
-  const botPlayerIds = Array.from(
-    { length: options.botCount },
-    (_, index) => index + 1,
-  );
-  return {
-    gameMode: options.gameMode,
-    seed: options.seed,
-    humanPlayerIds: [LOCAL_PLAYER_ID],
-    botPlayerIds,
-    botDifficulty: options.botDifficulty,
-    matchSeconds: options.matchSeconds,
-  };
-}
 
 function createHelloToken(randomBytes: RandomBytes): string {
   return Array.from(randomBytes(HELLO_TOKEN_LENGTH), (byte) =>
     TOKEN_ALPHABET.charAt(byte % TOKEN_ALPHABET.length),
   ).join("");
-}
-
-function buildEndHud(
-  scores: readonly ScoreItem[],
-  localPid: number,
-  gameMode: GameMode,
-  winnerPids: readonly number[],
-  names: ReadonlyMap<number, string>,
-): HudSnapshot {
-  const local = scores.find((row) => row[0] === localPid);
-  const localScore =
-    gameMode === "crashfest" ? (local?.[2] ?? 0) : (local?.[1] ?? 0);
-  return {
-    remainingMs: 0,
-    gameMode,
-    winnerPids,
-    localPid,
-    names,
-    score: localScore,
-    cargo: 0,
-    hp: 0,
-    scores: scores.map(([pid, cash, kills]) => ({
-      pid,
-      score: gameMode === "crashfest" ? kills : cash,
-    })),
-    feed: [],
-    paused: false,
-  };
 }
 
 export class SessionController {
@@ -204,6 +123,8 @@ export class SessionController {
   private readonly inputBuffer = new InputBuffer();
   private readonly deps: SessionDeps;
   private readonly lobbyDeps: LobbyDeps;
+  private readonly clock: SessionClock;
+  private readonly frames: FrameScheduler;
   private engine: Engine | null = null;
   private renderer: WorldRenderer | null = null;
   private readonly audio: CarAudio;
@@ -235,6 +156,8 @@ export class SessionController {
   constructor(deps: SessionDeps = DEFAULT_DEPS) {
     this.deps = deps;
     this.lobbyDeps = { ...DEFAULT_LOBBY_DEPS, ...deps.lobby };
+    this.clock = { ...DEFAULT_CLOCK, ...deps.clock };
+    this.frames = resolveFrameScheduler(deps);
     this.audio = deps.createAudio ? deps.createAudio() : new CarAudio();
   }
 
@@ -293,10 +216,8 @@ export class SessionController {
       hud: this.deps.hud,
       audio: this.audio,
       onFinished: (snapshot, winnerPids) => this.endMatch(snapshot, winnerPids),
-      ...(this.deps.requestFrame
-        ? { requestFrame: this.deps.requestFrame }
-        : {}),
-      ...(this.deps.cancelFrame ? { cancelFrame: this.deps.cancelFrame } : {}),
+      requestFrame: this.frames.request,
+      cancelFrame: this.frames.cancel,
     });
     this.watchForMatchEnd();
     this.setState(SESSION_STATE.playingSolo);
@@ -311,14 +232,9 @@ export class SessionController {
     this.audio.dispose();
     this.detachHud();
     if (snapshot !== undefined) {
-      const scores = snapshot.cars.map((car): ScoreItem =>
-        this.soloGameMode === "crashfest"
-          ? [car.pid, 0, car.score, 0]
-          : [car.pid, car.score, 0, car.score],
-      );
       this.deps.hud.push(
         buildEndHud(
-          scores,
+          scoresFromSnapshot(snapshot.cars, this.soloGameMode),
           LOCAL_PLAYER_ID,
           this.soloGameMode,
           winnerPids,
@@ -453,15 +369,14 @@ export class SessionController {
       "mp:host",
       () => `startMatch humans=${humans.length} bots=${bots.length}`,
     );
-    const seed = crypto.getRandomValues(new Uint32Array(1))[0] ?? 0;
+    const seed = this.clock.randomSeed();
     const carNames = buildCarNames(snapshot.players, bots.length);
     this.matchHost = new MatchHost({
       transport,
-      now: () => performance.now(),
-      setTimeout: (handler, ms) => setTimeout(handler, ms),
-      clearTimeout: (handle) =>
-        clearTimeout(handle as Parameters<typeof clearTimeout>[0]),
-      newMatchId: () => Date.now() % 0x7fffffff,
+      now: this.clock.now,
+      setTimeout: this.lobbyDeps.timers.setTimeout,
+      clearTimeout: this.lobbyDeps.timers.clearTimeout,
+      newMatchId: this.clock.newMatchId,
       makeSim: (setup) => new MatchSimulation(setup),
       seed,
       humanPids: humans,
@@ -558,10 +473,9 @@ export class SessionController {
       renderer,
       inputBuffer: this.inputBuffer,
       hud: this.deps.hud,
-      now: () => performance.now(),
-      requestFrame: (cb) =>
-        (this.deps.requestFrame ?? requestAnimationFrame)(cb),
-      cancelFrame: (id) => (this.deps.cancelFrame ?? cancelAnimationFrame)(id),
+      now: this.clock.now,
+      requestFrame: this.frames.request,
+      cancelFrame: this.frames.cancel,
       onEnd: (msg) =>
         this.finishNetworkMatch(
           msg.scores,
@@ -576,16 +490,14 @@ export class SessionController {
   }
 
   private startFrameLoop(): void {
-    const request =
-      this.deps.requestFrame ?? ((cb) => requestAnimationFrame(cb));
     const loop = (now: number): void => {
       if (this.state !== SESSION_STATE.playingNetwork) return;
       this.matchHost?.tick(now);
       this.renderHostFrame(now);
       this.logMatchFrame();
-      this.matchFrameId = request(loop);
+      this.matchFrameId = this.frames.request(loop);
     };
-    this.matchFrameId = request(loop);
+    this.matchFrameId = this.frames.request(loop);
   }
 
   private finishNetworkMatch(
@@ -629,7 +541,7 @@ export class SessionController {
 
   private cancelMatchFrame(): void {
     if (this.matchFrameId === null) return;
-    (this.deps.cancelFrame ?? cancelAnimationFrame)(this.matchFrameId);
+    this.frames.cancel(this.matchFrameId);
     this.matchFrameId = null;
   }
 
@@ -829,27 +741,13 @@ export class SessionController {
     );
     if (!parsed.ok || transport === null) return;
     this.clientStartSeen = true;
-    const pids = parsed.value.spawns.map((spawn) => spawn[0]);
-    const gameMode =
-      typeof parsed.value.cfg.gameMode === "string" &&
-      parsed.value.cfg.gameMode === "crashfest"
-        ? "crashfest"
-        : "cash";
-    const humanCount =
-      typeof parsed.value.cfg.humanCount === "number"
-        ? parsed.value.cfg.humanCount
-        : 0;
     const start: ClientStart = {
       start: msg,
-      gameMode,
+      gameMode: parsed.value.gameMode,
       localPid,
       transport,
       hostPeerId: hostPeerIdFor(lobbyStore.getSnapshot().roomCode ?? ""),
-      arena: buildArenaView(
-        pids.slice(0, humanCount),
-        pids.slice(humanCount),
-        gameMode,
-      ),
+      arena: arenaFromStart(parsed.value),
       names: new Map(parsed.value.names ?? []),
     };
     this.clientStart = start;
