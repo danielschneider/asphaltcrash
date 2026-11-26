@@ -3,11 +3,8 @@ import { gameConfig } from "../config/gameConfig";
 import { CarAudio } from "../game/audio/CarAudio";
 import type { Engine } from "../game/Engine";
 import { InputBuffer } from "../game/input/InputBuffer";
-import { MatchSimulation } from "../game/sim/MatchSimulation";
-import type { WorldRenderer } from "../game/Renderer";
 import { PeerTransport } from "../network/transport/PeerTransport";
-import type { Transport, Unsubscribe } from "../network/transport/Transport";
-import type { PeerId } from "../types/network";
+import type { Unsubscribe } from "../network/transport/Transport";
 import {
   attachHandshakeClient,
   sendHello,
@@ -22,13 +19,12 @@ import {
   type RandomBytes,
 } from "../network/room/roomCode";
 import { clampBotCount, totalCarCount } from "./lobbyRoster";
-import { MatchHost, MATCH_HOST_PHASE } from "./MatchHost";
-import { MatchClient } from "./MatchClient";
-import { frameSecondsSince } from "./frameSeconds";
+import {
+  HOST_PID,
+  NetworkMatchRunner,
+  type ClientStart,
+} from "./networkMatchRunner";
 import { arenaFromStart } from "./startArena";
-import { buildNetworkHud, HudThrottle } from "./networkHud";
-import { buildWorldView } from "../game/WorldView";
-import { buildArenaView } from "../game/arena";
 import { parseStart } from "../network/match/startMessage";
 import {
   PROTOCOL_VERSION,
@@ -45,12 +41,7 @@ import {
   peerErrorToMessage,
   reasonToMessage,
 } from "../store/lobbyStore";
-import type {
-  ArenaView,
-  BotDifficulty,
-  GameMode,
-  MatchSnapshot,
-} from "../types/game";
+import type { BotDifficulty, GameMode, MatchSnapshot } from "../types/game";
 import { isBotDifficulty, isGameMode } from "../types/game";
 import {
   DEFAULT_CLOCK,
@@ -67,16 +58,6 @@ import { buildCarNames, buildEndHud } from "./sessionHud";
 import { SESSION_STATE, type SessionState } from "./sessionState";
 import { SoloSession } from "./soloSession";
 
-interface ClientStart {
-  readonly start: NetworkMessage;
-  readonly gameMode: GameMode;
-  readonly localPid: number;
-  readonly transport: Transport;
-  readonly hostPeerId: PeerId;
-  readonly arena: ArenaView;
-  readonly names: ReadonlyMap<number, string>;
-}
-
 export { SESSION_STATE, type SessionState } from "./sessionState";
 
 export type {
@@ -88,7 +69,6 @@ export type {
   SoloMatchOptions,
 } from "./sessionDeps";
 
-const HOST_PID = 0;
 const HELLO_TOKEN_LENGTH = 16;
 const TOKEN_ALPHABET =
   "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
@@ -117,19 +97,7 @@ export class SessionController {
   private connectTimer: unknown = null;
   private resultTimer: unknown = null;
   private lobbyRoster: RosterHandshakeHost | null = null;
-  private matchHost: MatchHost | null = null;
-  private matchClient: MatchClient | null = null;
-  private matchFrameId: number | null = null;
-  private matchUnsubscribe: Unsubscribe | null = null;
-  private matchRenderer: WorldRenderer | null = null;
-  private matchRendererReady: Promise<void> | null = null;
-  private matchSurface: HTMLElement | null = null;
-  private pendingStart: ClientStart | null = null;
-  private clientStart: ClientStart | null = null;
-  private clientStartSeen = false;
-  private hostRenderMs: number | null = null;
-  private readonly hudThrottle = new HudThrottle(gameConfig.hudHz);
-  private matchFrames = 0;
+  private readonly matchRunner: NetworkMatchRunner;
 
   constructor(deps: SessionDeps = DEFAULT_DEPS) {
     this.deps = deps;
@@ -144,6 +112,16 @@ export class SessionController {
       inputBuffer: this.inputBuffer,
       frames: this.frames,
       onFinished: (snapshot, winnerPids) => this.endMatch(snapshot, winnerPids),
+    });
+    this.matchRunner = new NetworkMatchRunner({
+      deps,
+      inputBuffer: this.inputBuffer,
+      clock: this.clock,
+      frames: this.frames,
+      timers: this.lobbyDeps.timers,
+      getState: () => this.state,
+      onMatchEnd: (scores, localPid, winners, gameMode, names) =>
+        this.finishNetworkMatch(scores, localPid, winners, gameMode, names),
     });
   }
 
@@ -322,133 +300,23 @@ export class SessionController {
     );
     const seed = this.clock.randomSeed();
     const carNames = buildCarNames(snapshot.players, bots.length);
-    this.matchHost = new MatchHost({
+    this.matchRunner.prepareHost({
       transport,
-      now: this.clock.now,
-      setTimeout: this.lobbyDeps.timers.setTimeout,
-      clearTimeout: this.lobbyDeps.timers.clearTimeout,
-      newMatchId: this.clock.newMatchId,
-      makeSim: (setup) => new MatchSimulation(setup),
-      seed,
       humanPids: humans,
       botPids: bots,
       botDifficulty: snapshot.botDifficulty,
       gameMode: snapshot.gameMode,
       names: carNames,
-      matchSeconds: gameConfig.matchSeconds,
+      seed,
       pidForPeer: (peerId) => this.lobbyRoster?.pidForPeer(peerId),
       peerIdForPid: (pid) => this.lobbyRoster?.peerIdForPid(pid),
-      hostInput: () => this.inputBuffer.latest(),
-      onFinished: (scores, winners) =>
-        this.finishNetworkMatch(
-          scores,
-          HOST_PID,
-          winners,
-          snapshot.gameMode,
-          carNames,
-        ),
     });
-    this.matchUnsubscribe = transport.onMessage((msg: NetworkMessage, from) => {
-      this.matchHost?.handleInbound(msg, from);
-    });
-    this.hostRenderMs = null;
-    this.hudThrottle.reset();
     this.setState(SESSION_STATE.playingNetwork);
-    this.matchHost.start();
-    debugLog(
-      "mp:host",
-      () => `matchHost.start returned phase=${this.matchHost?.phase ?? "none"}`,
-    );
-    this.startFrameLoop();
+    this.matchRunner.startHost();
   }
 
   attachMatchRenderer(host: HTMLElement): Promise<void> {
-    debugLog(
-      "mp:render",
-      () =>
-        `attachMatchRenderer state=${this.state} rendererExists=${this.matchRenderer !== null} hostClient=${this.matchClient !== null}`,
-    );
-    if (this.matchSurface === host && this.matchRendererReady !== null) {
-      return this.matchRendererReady;
-    }
-    this.releaseMatchRenderer();
-    this.matchSurface = host;
-    const ready = this.deps
-      .createRenderer(host, this.currentArena())
-      .then((renderer) => this.adoptMatchRenderer(host, renderer));
-    this.matchRendererReady = ready;
-    return ready;
-  }
-
-  private adoptMatchRenderer(host: HTMLElement, renderer: WorldRenderer): void {
-    if (this.matchSurface !== host) {
-      renderer.destroy();
-      return;
-    }
-    this.matchRenderer = renderer;
-    debugLog("mp:render", "match renderer created");
-    this.startPendingClient();
-  }
-
-  private releaseMatchRenderer(): void {
-    this.matchClient?.stop();
-    this.matchClient = null;
-    this.matchRenderer?.destroy();
-    this.matchRenderer = null;
-    this.matchRendererReady = null;
-    this.matchSurface = null;
-    if (this.clientStart !== null) this.pendingStart = this.clientStart;
-  }
-
-  private currentArena(): ArenaView {
-    if (this.matchHost !== null) return this.matchHost.arena;
-    const start = this.pendingStart ?? this.clientStart;
-    if (start !== null) return start.arena;
-    return buildArenaView(
-      lobbyStore.getSnapshot().players.map((p) => p.pid),
-      [],
-    );
-  }
-
-  private startPendingClient(): void {
-    const pending = this.pendingStart;
-    const renderer = this.matchRenderer;
-    if (pending === null || renderer === null || this.matchClient !== null) {
-      return;
-    }
-    this.pendingStart = null;
-    this.matchClient = new MatchClient({
-      transport: pending.transport,
-      hostPeerId: pending.hostPeerId,
-      localPid: pending.localPid,
-      renderer,
-      inputBuffer: this.inputBuffer,
-      hud: this.deps.hud,
-      now: this.clock.now,
-      requestFrame: this.frames.request,
-      cancelFrame: this.frames.cancel,
-      onEnd: (msg) =>
-        this.finishNetworkMatch(
-          msg.scores,
-          pending.localPid,
-          msg.winners,
-          pending.gameMode,
-          pending.names,
-        ),
-    });
-    debugLog("mp:client", "MatchClient.start");
-    this.matchClient.start(pending.start);
-  }
-
-  private startFrameLoop(): void {
-    const loop = (now: number): void => {
-      if (this.state !== SESSION_STATE.playingNetwork) return;
-      this.matchHost?.tick(now);
-      this.renderHostFrame(now);
-      this.logMatchFrame();
-      this.matchFrameId = this.frames.request(loop);
-    };
-    this.matchFrameId = this.frames.request(loop);
+    return this.matchRunner.attachRenderer(host);
   }
 
   private finishNetworkMatch(
@@ -470,7 +338,7 @@ export class SessionController {
     );
     this.scheduleResultTransition(gameMode, winnerPids, () => {
       if (this.state !== SESSION_STATE.playingNetwork) return;
-      this.resetMatchState();
+      this.matchRunner.reset();
       this.setState(SESSION_STATE.endedNetwork);
     });
   }
@@ -488,65 +356,6 @@ export class SessionController {
       this.resultTimer = null;
       onComplete();
     }, gameConfig.crashfestResultDelaySeconds * 1000);
-  }
-
-  private cancelMatchFrame(): void {
-    if (this.matchFrameId === null) return;
-    this.frames.cancel(this.matchFrameId);
-    this.matchFrameId = null;
-  }
-
-  private renderHostFrame(nowMs: number): void {
-    const host = this.matchHost;
-    const renderer = this.matchRenderer;
-    if (host === null || renderer === null) return;
-    if (host.phase !== MATCH_HOST_PHASE.running) return;
-    const dtSeconds = frameSecondsSince(this.hostRenderMs, nowMs);
-    this.hostRenderMs = nowMs;
-    const snapshot = host.snapshot();
-    renderer.update(
-      buildWorldView(
-        host.renderSnapshot(),
-        host.arena,
-        HOST_PID,
-        host.carNames,
-      ),
-      dtSeconds,
-    );
-    if (this.hudThrottle.tick(dtSeconds)) {
-      this.deps.hud.push(
-        buildNetworkHud(
-          snapshot,
-          HOST_PID,
-          host.gameMode,
-          snapshot.timeRemainingMs,
-          host.connectivity(nowMs) ?? undefined,
-        ),
-      );
-    }
-  }
-
-  private logMatchFrame(): void {
-    this.matchFrames += 1;
-    if (this.matchFrames !== 1 && this.matchFrames % 60 !== 0) return;
-    debugLog(
-      "mp:frame",
-      () =>
-        `n=${this.matchFrames} matchHost=${this.matchHost !== null} matchClient=${this.matchClient !== null} matchRenderer=${this.matchRenderer !== null} hostPhase=${this.matchHost?.phase ?? "none"}`,
-    );
-  }
-
-  // Lobby transport and roster survive a finished match; only per-match state is cleared here.
-  private resetMatchState(): void {
-    this.cancelMatchFrame();
-    this.matchUnsubscribe?.();
-    this.matchUnsubscribe = null;
-    this.matchHost = null;
-    this.hostRenderMs = null;
-    this.clientStart = null;
-    this.clientStartSeen = false;
-    this.pendingStart = null;
-    this.releaseMatchRenderer();
   }
 
   returnToLobby(): void {
@@ -627,7 +436,7 @@ export class SessionController {
       this.lobbyDeps.timers.clearTimeout(this.resultTimer);
       this.resultTimer = null;
     }
-    this.resetMatchState();
+    this.matchRunner.reset();
     this.solo.dispose();
     this.audio.dispose();
     if (this.lobbyTransport !== null) {
@@ -653,7 +462,7 @@ export class SessionController {
     if (transport === null) return;
     this.lobbyUnsubscribers.push(
       transport.onMessage((msg: NetworkMessage) => {
-        if (msg.t !== "start" || this.clientStartSeen) return;
+        if (msg.t !== "start" || this.matchRunner.hasClientStart()) return;
         this.beginClientMatch(msg, localPid);
       }),
     );
@@ -684,10 +493,9 @@ export class SessionController {
     debugLog(
       "mp:client",
       () =>
-        `beginClientMatch parsed=${parsed.ok} transport=${transport !== null} surface=${this.matchSurface !== null}`,
+        `beginClientMatch parsed=${parsed.ok} transport=${transport !== null} surface=${this.matchRunner.hasSurface()}`,
     );
     if (!parsed.ok || transport === null) return;
-    this.clientStartSeen = true;
     const start: ClientStart = {
       start: msg,
       gameMode: parsed.value.gameMode,
@@ -697,14 +505,13 @@ export class SessionController {
       arena: arenaFromStart(parsed.value),
       names: new Map(parsed.value.names ?? []),
     };
-    this.clientStart = start;
-    this.pendingStart = start;
+    this.matchRunner.stageClientStart(start);
     this.setState(SESSION_STATE.playingNetwork);
-    this.startPendingClient();
+    this.matchRunner.startPendingClient();
   }
 
   private failLobby(reason: string, detail?: string): void {
-    this.resetMatchState();
+    this.matchRunner.reset();
     this.teardownLobby();
     lobbyStore.set({
       role: "none",
